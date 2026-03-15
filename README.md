@@ -38,7 +38,7 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Standard HTTP rate limit headers
 - [x] Configurable fail-open / fail-closed on Redis failure
 - [x] Structured logging (SLF4J)
-- [x] Prometheus metrics via Micrometer (with route labels)
+- [x] Prometheus metrics via Micrometer (low-cardinality `policy_id` labels)
 - [x] YAML-based policy configuration with Bean Validation
 - [x] Path normalization (trailing slash stripping)
 - [x] Observe (shadow) mode for safe policy rollout
@@ -365,13 +365,17 @@ api-rate-limiter/
 │   │   │   ├── RouteExtractor.java
 │   │   │   └── CompositeKeyBuilder.java
 │   │   ├── policy/
-│   │   │   └── PolicyResolver.java
+│   │   │   ├── PolicyResolver.java
+│   │   │   ├── PolicyStore.java
+│   │   │   ├── YamlPolicyStore.java
+│   │   │   └── RouteNormalizer.java
 │   │   ├── backend/
 │   │   │   ├── RateLimitBackend.java
 │   │   │   ├── RedisBackend.java
 │   │   │   └── InMemoryBackend.java
 │   │   ├── engine/
-│   │   │   └── RateLimitEngine.java
+│   │   │   ├── RateLimitEngine.java
+│   │   │   └── PolicyEvaluator.java
 │   │   ├── filter/
 │   │   │   ├── RateLimitFilter.java
 │   │   │   └── RateLimitHeaderAdvice.java
@@ -567,7 +571,9 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 - MIT License, publishable to Maven Local / GitHub Packages
 
 ### Future Considerations
+- PolicyStore versioning: snapshot/validation/rollback semantics for DB/API-backed stores
+- Unified enforcement pipeline: shared `DecisionRenderer` for filter and annotation interceptor response writing
 - Hierarchical quotas (tenant → user → endpoint)
 - Webhook notifications on sustained rejections
 - Spring Cloud Config integration for remote policy management
-- Rate limit response body templates
+- Multi-module build: separate `core` / `spring-boot-starter` / `examples` modules

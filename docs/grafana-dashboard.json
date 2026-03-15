@@ -169,7 +169,7 @@
     },
     {
       "id": 7,
-      "title": "Top Rejected Routes",
+      "title": "Top Rejected Policies",
       "type": "table",
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
       "targets": [

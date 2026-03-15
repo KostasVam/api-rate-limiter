@@ -147,8 +147,8 @@ All methods return the current state (count/tokens, TTL) and the engine computes
 ```
 Time: 14:30:00 (window_start = floor(1742046600 / 60) = 29034110)
   │
-  ├── 1st request:   INCR rl:login-per-ip:ip:1.2.3.4:29034110  → 1
-  │                  EXPIRE rl:login-per-ip:ip:1.2.3.4:29034110 65
+  ├── 1st request:   INCR rl:{login-per-ip:ip:1.2.3.4}:29034110  → 1
+  │                  EXPIRE rl:{login-per-ip:ip:1.2.3.4}:29034110 65
   │
   ├── 2nd request:   INCR → 2
   ├── 3rd request:   INCR → 3
@@ -157,7 +157,7 @@ Time: 14:30:00 (window_start = floor(1742046600 / 60) = 29034110)
   │
 Time: 14:31:00 (window_start = 29034111)
   │
-  ├── New key:       INCR rl:login-per-ip:ip:1.2.3.4:29034111  → 1
+  ├── New key:       INCR rl:{login-per-ip:ip:1.2.3.4}:29034111  → 1
   │
 Time: 14:31:05
   │
