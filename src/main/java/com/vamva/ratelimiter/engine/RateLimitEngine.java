@@ -130,15 +130,18 @@ public class RateLimitEngine {
 
     /**
      * Evaluates a single policy using the configured algorithm.
-     */
-    /**
-     * Evaluates a single policy using the configured algorithm.
+     *
+     * <p>Keys use Redis hash tags {@code {policy:subject}} to ensure all keys for the same
+     * policy+subject land on the same hash slot in Redis Cluster mode. This is required
+     * for multi-key Lua scripts (sliding window) to work correctly.</p>
      */
     private RateLimitResult evaluatePolicy(Policy policy, String subjectKey) {
         long now = Instant.now().getEpochSecond();
+        // Hash tag ensures all keys for same policy+subject go to same Redis Cluster slot
+        String hashTag = String.format("{%s:%s}", policy.getId(), subjectKey);
 
         if (policy.getAlgorithm() == Algorithm.TOKEN_BUCKET) {
-            String bucketKey = String.format("rl:tb:%s:%s", policy.getId(), subjectKey);
+            String bucketKey = String.format("rl:tb:%s", hashTag);
             int capacity = policy.getEffectiveBurstCapacity();
             double refillRate = (double) policy.getLimit() / policy.getWindowSeconds();
             return backend.tokenBucketConsume(bucketKey, capacity, refillRate, policy.getId());
@@ -148,8 +151,8 @@ public class RateLimitEngine {
 
         if (policy.getAlgorithm() == Algorithm.SLIDING_WINDOW) {
             long previousWindowStart = windowStart - 1;
-            String currentKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, windowStart);
-            String previousKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, previousWindowStart);
+            String currentKey = String.format("rl:%s:%d", hashTag, windowStart);
+            String previousKey = String.format("rl:%s:%d", hashTag, previousWindowStart);
 
             long windowStartEpoch = windowStart * policy.getWindowSeconds();
             double elapsed = now - windowStartEpoch;
@@ -160,7 +163,7 @@ public class RateLimitEngine {
         }
 
         // Default: fixed window
-        String redisKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, windowStart);
+        String redisKey = String.format("rl:%s:%d", hashTag, windowStart);
         return backend.increment(redisKey, policy.getLimit(), policy.getWindowSeconds(), policy.getId());
     }
 

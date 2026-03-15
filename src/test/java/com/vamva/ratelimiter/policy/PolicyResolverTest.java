@@ -1,5 +1,6 @@
 package com.vamva.ratelimiter.policy;
 
+import com.vamva.ratelimiter.config.PolicyReloadService;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.model.MatchCondition;
 import com.vamva.ratelimiter.model.Policy;
@@ -18,10 +19,7 @@ class PolicyResolverTest {
         Policy paymentPolicy = createPolicy("payment", List.of("/api/payments/**"), List.of("POST"), 2);
         Policy getPolicy = createPolicy("get-all", List.of("/api/**"), List.of("GET"), 3);
 
-        RateLimiterProperties props = new RateLimiterProperties();
-        props.setPolicies(List.of(loginPolicy, paymentPolicy, getPolicy));
-
-        PolicyResolver resolver = new PolicyResolver(props);
+        PolicyResolver resolver = createResolver(List.of(loginPolicy, paymentPolicy, getPolicy));
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
         List<Policy> result = resolver.resolve(request);
@@ -35,10 +33,7 @@ class PolicyResolverTest {
         Policy broad = createPolicy("broad", List.of("/api/**"), List.of("POST"), 10);
         Policy specific = createPolicy("specific", List.of("/api/payments/**"), List.of("POST"), 1);
 
-        RateLimiterProperties props = new RateLimiterProperties();
-        props.setPolicies(List.of(broad, specific));
-
-        PolicyResolver resolver = new PolicyResolver(props);
+        PolicyResolver resolver = createResolver(List.of(broad, specific));
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/payments/charge");
         List<Policy> result = resolver.resolve(request);
@@ -54,10 +49,7 @@ class PolicyResolverTest {
         Policy disabled = createPolicy("disabled", List.of("/api/**"), List.of("POST"), 2);
         disabled.setEnabled(false);
 
-        RateLimiterProperties props = new RateLimiterProperties();
-        props.setPolicies(List.of(enabled, disabled));
-
-        PolicyResolver resolver = new PolicyResolver(props);
+        PolicyResolver resolver = createResolver(List.of(enabled, disabled));
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/test");
         List<Policy> result = resolver.resolve(request);
@@ -70,15 +62,19 @@ class PolicyResolverTest {
     void returnsEmptyWhenNothingMatches() {
         Policy policy = createPolicy("login", List.of("/api/auth/login"), List.of("POST"), 1);
 
-        RateLimiterProperties props = new RateLimiterProperties();
-        props.setPolicies(List.of(policy));
-
-        PolicyResolver resolver = new PolicyResolver(props);
+        PolicyResolver resolver = createResolver(List.of(policy));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users");
         List<Policy> result = resolver.resolve(request);
 
         assertTrue(result.isEmpty());
+    }
+
+    private PolicyResolver createResolver(List<Policy> policies) {
+        RateLimiterProperties props = new RateLimiterProperties();
+        props.setPolicies(policies);
+        PolicyReloadService reloadService = new PolicyReloadService(props);
+        return new PolicyResolver(reloadService);
     }
 
     private Policy createPolicy(String id, List<String> paths, List<String> methods, int priority) {

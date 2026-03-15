@@ -1,6 +1,7 @@
 package com.vamva.ratelimiter.engine;
 
 import com.vamva.ratelimiter.backend.RateLimitBackend;
+import com.vamva.ratelimiter.config.PolicyReloadService;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.MatchCondition;
@@ -37,7 +38,7 @@ class RateLimitEngineTest {
                 List.of("ip"), PolicyMode.ENFORCE);
         properties.setPolicies(List.of(policy));
 
-        PolicyResolver resolver = new PolicyResolver(properties);
+        PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
         backend = mock(RateLimitBackend.class);
         metrics = mock(RateLimitMetrics.class);
@@ -100,7 +101,7 @@ class RateLimitEngineTest {
         properties.setPolicies(List.of(observePolicy));
 
         // Recreate engine with updated policies
-        PolicyResolver resolver = new PolicyResolver(properties);
+        PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
         engine = new RateLimitEngine(properties, resolver, keyBuilder, backend, metrics);
 
@@ -125,7 +126,7 @@ class RateLimitEngineTest {
                 List.of("ip"), PolicyMode.OBSERVE);
         properties.setPolicies(List.of(observePolicy));
 
-        PolicyResolver resolver = new PolicyResolver(properties);
+        PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
         engine = new RateLimitEngine(properties, resolver, keyBuilder, backend, metrics);
 

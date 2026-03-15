@@ -19,6 +19,7 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 | Metrics         | Micrometer + Prometheus          |
 | Config          | YAML (Spring native)             |
 | Validation      | Jakarta Bean Validation          |
+| Resilience      | Resilience4j (circuit breaker)   |
 | Boilerplate     | Lombok                           |
 | Testing         | JUnit 5 + Mockito + Testcontainers |
 | Containerization| Docker Compose (Redis)           |
@@ -43,6 +44,9 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Token Bucket algorithm (burst-friendly)
 - [x] Configurable bypass paths (health checks, actuator)
 - [x] Grafana dashboard template
+- [x] Resilience4j circuit breaker around Redis
+- [x] Dynamic policy reload via actuator endpoint
+- [x] Redis Cluster / Sentinel support (hash tag key design)
 
 ## Architecture
 
@@ -457,6 +461,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [Performance](docs/performance.md) | Latency model, throughput analysis, load testing plan |
 | [Benchmarks](docs/benchmarks.md) | Load test results and Redis resource usage |
 | [Grafana](docs/grafana.md) | Dashboard template, panel descriptions, alerting recommendations |
+| [Redis Deployment](docs/redis-deployment.md) | Standalone, Sentinel, Cluster config, connection pooling, monitoring |
 
 ### Architecture Decision Records
 
@@ -470,23 +475,25 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [ADR-006](docs/adr/ADR-006-observe-shadow-mode.md) | Observe (shadow) mode for safe policy rollout |
 | [ADR-007](docs/adr/ADR-007-sliding-window-counter.md) | Sliding Window Counter algorithm |
 | [ADR-008](docs/adr/ADR-008-token-bucket-algorithm.md) | Token Bucket algorithm |
+| [ADR-009](docs/adr/ADR-009-redis-cluster-hash-tags.md) | Redis hash tags for Cluster compatibility |
 
 ## Roadmap
 
 ### v1.0 (Current)
 - Three algorithms: Fixed Window, Sliding Window Counter, Token Bucket
-- Redis + in-memory backends
+- Redis + in-memory backends with Resilience4j circuit breaker
+- Redis Cluster / Sentinel support (hash tag key design)
 - HTTP rate limit headers
 - Prometheus metrics + CI pipeline + Grafana dashboard
 - Structured logging
 - Per-route YAML policies with per-policy algorithm selection
 - Observe (shadow) mode for safe rollout
+- Dynamic policy reload via actuator endpoint
 - Configurable bypass paths (health checks, actuator)
 - k6 load test scripts
+- Comprehensive test suite: unit, integration, contract, chaos (61 tests)
 
 ### v2.0
-- Dynamic config reload without restart
-- Redis Cluster support
 
 ### v3.0
 - Centralized rate limit service (gRPC)

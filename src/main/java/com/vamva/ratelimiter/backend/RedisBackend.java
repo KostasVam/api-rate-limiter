@@ -2,28 +2,33 @@ package com.vamva.ratelimiter.backend;
 
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.RateLimitResult;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Redis-backed rate limit counter using Lua scripts for atomic operations.
  *
- * <p>Supports three algorithms:</p>
- * <ul>
- *   <li><strong>Fixed Window</strong> — single INCR + EXPIRE per request</li>
- *   <li><strong>Sliding Window Counter</strong> — weighted average of current and previous window</li>
- *   <li><strong>Token Bucket</strong> — refill tokens at steady rate, consume on request</li>
- * </ul>
+ * <p>Supports three algorithms: Fixed Window, Sliding Window Counter, and Token Bucket.</p>
  *
- * <p>When Redis is unavailable, behavior depends on the {@code failOpen} flag.</p>
+ * <p>Wraps all Redis calls in a Resilience4j {@link CircuitBreaker} to prevent
+ * cascading failures when Redis is unavailable. The circuit breaker transitions:</p>
+ * <ul>
+ *   <li><strong>CLOSED</strong> → normal operation, calls go through</li>
+ *   <li><strong>OPEN</strong> → after failure threshold, calls short-circuit to fail-open/closed</li>
+ *   <li><strong>HALF_OPEN</strong> → after wait duration, allows probe calls to test recovery</li>
+ * </ul>
  */
 @Slf4j
 public class RedisBackend implements RateLimitBackend {
@@ -36,32 +41,37 @@ public class RedisBackend implements RateLimitBackend {
     private final DefaultRedisScript<List> tokenBucketScript;
     private final boolean failOpen;
     private final RateLimitMetrics metrics;
+    private final CircuitBreaker circuitBreaker;
 
     public RedisBackend(StringRedisTemplate redisTemplate, boolean failOpen, RateLimitMetrics metrics) {
         this.redisTemplate = redisTemplate;
         this.failOpen = failOpen;
         this.metrics = metrics;
 
-        this.fixedWindowScript = new DefaultRedisScript<>();
-        this.fixedWindowScript.setLocation(new ClassPathResource("scripts/fixed_window.lua"));
-        this.fixedWindowScript.setResultType(List.class);
+        this.fixedWindowScript = loadScript("scripts/fixed_window.lua");
+        this.slidingWindowScript = loadScript("scripts/sliding_window.lua");
+        this.tokenBucketScript = loadScript("scripts/token_bucket.lua");
 
-        this.slidingWindowScript = new DefaultRedisScript<>();
-        this.slidingWindowScript.setLocation(new ClassPathResource("scripts/sliding_window.lua"));
-        this.slidingWindowScript.setResultType(List.class);
+        CircuitBreakerConfig config = CircuitBreakerConfig.custom()
+                .failureRateThreshold(50)
+                .minimumNumberOfCalls(5)
+                .slidingWindowSize(10)
+                .waitDurationInOpenState(Duration.ofSeconds(10))
+                .permittedNumberOfCallsInHalfOpenState(3)
+                .build();
 
-        this.tokenBucketScript = new DefaultRedisScript<>();
-        this.tokenBucketScript.setLocation(new ClassPathResource("scripts/token_bucket.lua"));
-        this.tokenBucketScript.setResultType(List.class);
+        this.circuitBreaker = CircuitBreakerRegistry.of(config).circuitBreaker("redis-rate-limiter");
+
+        circuitBreaker.getEventPublisher()
+                .onStateTransition(event -> log.warn("Circuit breaker state transition: {}", event));
     }
 
     @Override
     public RateLimitResult increment(String key, int limit, int windowSeconds, String policyId) {
-        try {
+        return executeWithCircuitBreaker(() -> {
             int ttl = windowSeconds + TTL_BUFFER_SECONDS;
             List result = redisTemplate.execute(fixedWindowScript,
-                    Collections.singletonList(key),
-                    String.valueOf(ttl));
+                    Collections.singletonList(key), String.valueOf(ttl));
 
             long currentCount = ((Number) result.get(0)).longValue();
             long remainingTtl = ((Number) result.get(1)).longValue();
@@ -72,39 +82,26 @@ public class RedisBackend implements RateLimitBackend {
             if (currentCount > limit) {
                 return RateLimitResult.rejected(limit, resetEpoch, policyId, remainingTtl);
             }
-
             return RateLimitResult.allowed(limit, remaining, resetEpoch, policyId);
-
-        } catch (RedisConnectionFailureException e) {
-            log.error("Redis connection failed for key={}: {}", key, e.getMessage());
-            metrics.recordBackendError();
-            return handleFailure(limit, windowSeconds, policyId);
-
-        } catch (Exception e) {
-            log.error("Unexpected error during rate limit check for key={}: {}", key, e.getMessage(), e);
-            metrics.recordBackendError();
-            return handleFailure(limit, windowSeconds, policyId);
-        }
+        }, limit, windowSeconds, policyId);
     }
 
     @Override
     public RateLimitResult slidingWindowIncrement(String currentKey, String previousKey,
                                                    int limit, int windowSeconds,
                                                    double overlapWeight, String policyId) {
-        try {
+        return executeWithCircuitBreaker(() -> {
             int ttl = windowSeconds + TTL_BUFFER_SECONDS;
             int weightPct = (int) (overlapWeight * 100);
 
             List result = redisTemplate.execute(slidingWindowScript,
                     Arrays.asList(currentKey, previousKey),
-                    String.valueOf(ttl),
-                    String.valueOf(weightPct));
+                    String.valueOf(ttl), String.valueOf(weightPct));
 
             long currentCount = ((Number) result.get(0)).longValue();
             long previousCount = ((Number) result.get(1)).longValue();
             long remainingTtl = ((Number) result.get(2)).longValue();
 
-            // Weighted count: current + (previous * overlap weight)
             double weightedCount = currentCount + (previousCount * overlapWeight);
             int effectiveCount = (int) Math.ceil(weightedCount);
 
@@ -114,27 +111,17 @@ public class RedisBackend implements RateLimitBackend {
             if (effectiveCount > limit) {
                 return RateLimitResult.rejected(limit, resetEpoch, policyId, remainingTtl);
             }
-
             return RateLimitResult.allowed(limit, remaining, resetEpoch, policyId);
-
-        } catch (RedisConnectionFailureException e) {
-            log.error("Redis connection failed for sliding window key={}: {}", currentKey, e.getMessage());
-            metrics.recordBackendError();
-            return handleFailure(limit, windowSeconds, policyId);
-
-        } catch (Exception e) {
-            log.error("Unexpected error during sliding window check for key={}: {}", currentKey, e.getMessage(), e);
-            metrics.recordBackendError();
-            return handleFailure(limit, windowSeconds, policyId);
-        }
+        }, limit, windowSeconds, policyId);
     }
 
     @Override
     public RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
-        try {
+        int windowSeconds = (int) Math.ceil(capacity / refillRate);
+
+        return executeWithCircuitBreaker(() -> {
             long now = Instant.now().getEpochSecond();
-            // TTL: time to fully refill bucket from empty + buffer
-            int ttl = (int) Math.ceil(capacity / refillRate) + TTL_BUFFER_SECONDS;
+            int ttl = windowSeconds + TTL_BUFFER_SECONDS;
 
             List result = redisTemplate.execute(tokenBucketScript,
                     Collections.singletonList(key),
@@ -153,26 +140,22 @@ public class RedisBackend implements RateLimitBackend {
                 return RateLimitResult.allowed(capacity, (int) remaining, resetEpoch, policyId);
             }
             return RateLimitResult.rejected(capacity, resetEpoch, policyId, retryAfter);
-
-        } catch (RedisConnectionFailureException e) {
-            log.error("Redis connection failed for token bucket key={}: {}", key, e.getMessage());
-            metrics.recordBackendError();
-            return handleTokenBucketFailure(capacity, refillRate, policyId);
-
-        } catch (Exception e) {
-            log.error("Unexpected error during token bucket check for key={}: {}", key, e.getMessage(), e);
-            metrics.recordBackendError();
-            return handleTokenBucketFailure(capacity, refillRate, policyId);
-        }
+        }, capacity, windowSeconds, policyId);
     }
 
-    private RateLimitResult handleTokenBucketFailure(int capacity, double refillRate, String policyId) {
-        long resetEpoch = Instant.now().getEpochSecond() + (long) Math.ceil(1.0 / refillRate);
-        if (failOpen) {
-            log.warn("Fail-open: allowing request due to backend error (policy={})", policyId);
-            return RateLimitResult.allowed(capacity, capacity, resetEpoch, policyId);
+    /**
+     * Executes a Redis operation through the circuit breaker.
+     * On failure (or when circuit is open), falls back to fail-open/closed behavior.
+     */
+    private RateLimitResult executeWithCircuitBreaker(Supplier<RateLimitResult> operation,
+                                                       int limit, int windowSeconds, String policyId) {
+        try {
+            return circuitBreaker.executeSupplier(operation);
+        } catch (Exception e) {
+            log.error("Redis call failed (circuit={}): {}", circuitBreaker.getState(), e.getMessage());
+            metrics.recordBackendError();
+            return handleFailure(limit, windowSeconds, policyId);
         }
-        return RateLimitResult.rejected(capacity, resetEpoch, policyId, (long) Math.ceil(1.0 / refillRate));
     }
 
     private RateLimitResult handleFailure(int limit, int windowSeconds, String policyId) {
@@ -182,5 +165,12 @@ public class RedisBackend implements RateLimitBackend {
             return RateLimitResult.allowed(limit, limit, resetEpoch, policyId);
         }
         return RateLimitResult.rejected(limit, resetEpoch, policyId, windowSeconds);
+    }
+
+    private DefaultRedisScript<List> loadScript(String path) {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource(path));
+        script.setResultType(List.class);
+        return script;
     }
 }
