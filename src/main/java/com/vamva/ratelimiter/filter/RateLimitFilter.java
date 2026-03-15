@@ -37,6 +37,9 @@ import java.util.Optional;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    /** Request attribute key where the rate limit result is stored for error handlers. */
+    public static final String RATE_LIMIT_RESULT_ATTRIBUTE = "rateLimitResult";
+
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final RateLimitEngine engine;
@@ -76,9 +79,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         RateLimitResult result = resultOpt.get();
 
-        response.setHeader("X-RateLimit-Limit", String.valueOf(result.getLimit()));
-        response.setHeader("X-RateLimit-Remaining", String.valueOf(result.getRemaining()));
-        response.setHeader("X-RateLimit-Reset", String.valueOf(result.getResetEpochSeconds()));
+        // Store result as request attribute for downstream error handlers
+        request.setAttribute(RATE_LIMIT_RESULT_ATTRIBUTE, result);
+
+        setRateLimitHeaders(response, result);
 
         if (result.isAllowed()) {
             metrics.recordRequest(result.getPolicyId(), route, true);
@@ -86,14 +90,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         } else {
             metrics.recordRequest(result.getPolicyId(), route, false);
 
-            response.setStatus(429);
+            response.setStatus(result.getErrorStatusCode());
             response.setHeader("Retry-After", String.valueOf(result.getRetryAfterSeconds()));
             response.setHeader("X-RateLimit-Policy", result.getPolicyId());
             response.setContentType("application/json");
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("error", "rate_limit_exceeded");
-            body.put("message", "Too many requests");
+            body.put("message", result.getErrorMessage());
             body.put("limit", result.getLimit());
             body.put("remaining", 0);
             body.put("retry_after_seconds", result.getRetryAfterSeconds());
@@ -106,6 +110,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 response.getWriter().write("{\"error\":\"rate_limit_exceeded\"}");
             }
         }
+    }
+
+    private void setRateLimitHeaders(HttpServletResponse response, RateLimitResult result) {
+        response.setHeader("X-RateLimit-Limit", String.valueOf(result.getLimit()));
+        response.setHeader("X-RateLimit-Remaining", String.valueOf(result.getRemaining()));
+        response.setHeader("X-RateLimit-Reset", String.valueOf(result.getResetEpochSeconds()));
     }
 
     private boolean isExcluded(String path) {

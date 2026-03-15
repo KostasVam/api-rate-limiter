@@ -71,10 +71,29 @@ public class Policy {
     @Min(0)
     private int burstCapacity;
 
+    /** Custom error message returned in the 429 response body. Defaults to "Too many requests". */
+    private String errorMessage;
+
+    /**
+     * Custom HTTP status code for rejection. Defaults to 429 if not set (0).
+     * When specified, must be >= 400.
+     */
+    private int errorStatusCode;
+
     /**
      * Returns the effective burst capacity — defaults to {@code limit} if not explicitly set.
      */
     public int getEffectiveBurstCapacity() {
         return burstCapacity > 0 ? burstCapacity : limit;
+    }
+
+    /** Returns the error message, defaulting to "Too many requests". */
+    public String getEffectiveErrorMessage() {
+        return errorMessage != null && !errorMessage.isBlank() ? errorMessage : "Too many requests";
+    }
+
+    /** Returns the error status code, defaulting to 429. */
+    public int getEffectiveErrorStatusCode() {
+        return errorStatusCode > 0 ? errorStatusCode : 429;
     }
 }

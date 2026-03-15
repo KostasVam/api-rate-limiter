@@ -47,6 +47,9 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Resilience4j circuit breaker around Redis
 - [x] Dynamic policy reload via actuator endpoint
 - [x] Redis Cluster / Sentinel support (hash tag key design)
+- [x] Custom error response per policy (message, status code)
+- [x] Rate limit headers on error responses (ResponseBodyAdvice)
+- [x] Annotation-based `@RateLimit` for controller methods
 
 ## Architecture
 
@@ -170,6 +173,24 @@ This allows operators to validate policy impact on real traffic before switching
   limit: 3
   window-seconds: 60
 ```
+
+### Annotation-Based Rate Limiting
+
+As an alternative to YAML, you can annotate controller methods directly:
+
+```java
+@PostMapping("/api/payments")
+@RateLimit(id = "payments-per-user", limit = 10, windowSeconds = 60, subjects = {"user", "route"})
+public ResponseEntity<?> createPayment() { ... }
+
+@PostMapping("/api/upload")
+@RateLimit(id = "upload-per-ip", limit = 5, windowSeconds = 60,
+           algorithm = Algorithm.TOKEN_BUCKET, burstCapacity = 10,
+           errorMessage = "Upload rate limit exceeded")
+public ResponseEntity<?> upload() { ... }
+```
+
+Annotation policies coexist with YAML policies — both are evaluated. If either rejects, the request is rejected.
 
 ### Fixed Window Algorithm
 
@@ -491,7 +512,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 - Dynamic policy reload via actuator endpoint
 - Configurable bypass paths (health checks, actuator)
 - k6 load test scripts
-- Comprehensive test suite: unit, integration, contract, chaos (61 tests)
+- Comprehensive test suite: unit, integration, contract, chaos (64 tests)
 
 ### v2.0
 

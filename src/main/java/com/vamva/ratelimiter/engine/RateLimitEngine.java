@@ -86,7 +86,16 @@ public class RateLimitEngine {
                 continue;
             }
 
-            RateLimitResult result = evaluatePolicy(policy, subjectKey.get());
+            RateLimitResult rawResult = evaluatePolicy(policy, subjectKey.get());
+
+            // Enrich rejected results with policy's custom error configuration
+            RateLimitResult result = rawResult;
+            if (!rawResult.isAllowed()) {
+                result = RateLimitResult.rejected(
+                        rawResult.getLimit(), rawResult.getResetEpochSeconds(),
+                        rawResult.getPolicyId(), rawResult.getRetryAfterSeconds(),
+                        policy.getEffectiveErrorMessage(), policy.getEffectiveErrorStatusCode());
+            }
 
             boolean isObserve = policy.getMode() == PolicyMode.OBSERVE;
             String decision = resolveDecisionLabel(result, isObserve);
