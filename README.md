@@ -530,7 +530,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [Architecture](docs/architecture.md) | Component overview, sequence diagrams, deployment topology |
 | [Security](docs/security.md) | Threat model, attack vectors, mitigations |
 | [Performance](docs/performance.md) | Latency model, throughput analysis, load testing plan |
-| [Benchmarks](docs/benchmarks.md) | Load test results and Redis resource usage |
+| [Benchmarks](docs/benchmarks.md) | JMH microbenchmarks + HTTP load test results |
 | [Grafana](docs/grafana.md) | Dashboard template, panel descriptions, alerting recommendations |
 | [Algorithm Comparison](docs/algorithm-comparison.md) | When to use each algorithm, trade-offs, decision matrix |
 | [Redis Deployment](docs/redis-deployment.md) | Standalone, Sentinel, Cluster config, connection pooling, monitoring |
@@ -555,25 +555,19 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 - Three algorithms: Fixed Window, Sliding Window Counter, Token Bucket
 - Redis + in-memory backends with Resilience4j circuit breaker
 - Redis Cluster / Sentinel support (hash tag key design)
-- HTTP rate limit headers
-- Prometheus metrics + CI pipeline + Grafana dashboard
-- Structured logging
-- Per-route YAML policies with per-policy algorithm selection
-- Observe (shadow) mode for safe rollout
+- Spring Boot Starter packaging with auto-configuration
+- YAML policies + `@RateLimit` annotation + PolicyStore SPI
+- Observe (shadow) mode for safe policy rollout
 - Dynamic policy reload via actuator endpoint
-- Configurable bypass paths (health checks, actuator)
-- k6 load test scripts
-- Comprehensive test suite: unit, integration, contract, chaos (64 tests)
+- Custom error responses per policy
+- Configurable bypass paths
+- Prometheus metrics + Grafana dashboard
+- JMH microbenchmarks + k6 load tests
+- 68 tests (unit, integration, contract, chaos, auto-config)
+- MIT License, publishable to Maven Local / GitHub Packages
 
-### v2.0
-- Spring Boot Starter packaging (publishable library)
-- Leaky Bucket algorithm
-- Response body customization templates
+### Future Considerations
+- Hierarchical quotas (tenant → user → endpoint)
 - Webhook notifications on sustained rejections
-
-### v3.0
-- Centralized rate limit service (gRPC)
-- Admin API for runtime policy management
-- Grafana dashboard templates
-- Billing / quota management
-- Multi-region support
+- Spring Cloud Config integration for remote policy management
+- Rate limit response body templates
