@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+rate-limiter:
+  enabled: true
+  fail-open: true
+  backend: redis
+
+  policies:
+    - id: login-per-ip
+      enabled: true
+      priority: 1
+      match:
+        paths:
+          - /api/auth/login
+        methods:
+          - POST
+      subjects:
+        - ip
+      limit: 5
+      window-seconds: 60
+
+    - id: payments-per-user
+      enabled: true
+      priority: 2
+      match:
+        paths:
+          - /api/payments/**
+        methods:
+          - POST
+          - PUT
+      subjects:
+        - user
+        - route
+      limit: 10
+      window-seconds: 60

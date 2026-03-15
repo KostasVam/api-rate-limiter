@@ -1,0 +1,46 @@
+package com.vamva.ratelimiter.model;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.Data;
+
+import java.util.List;
+
+/**
+ * Represents a rate limiting policy that defines when and how to limit requests.
+ *
+ * <p>Each policy specifies match conditions (paths, methods), subject scopes
+ * for key generation, and rate limit parameters (requests per window).</p>
+ */
+@Data
+public class Policy {
+
+    /** Unique identifier for this policy, used in Redis keys and metrics. */
+    @NotBlank
+    private String id;
+
+    /** Whether this policy is active. Disabled policies are skipped during evaluation. */
+    private boolean enabled = true;
+
+    /** Priority for evaluation ordering. Lower values are evaluated first. */
+    @Min(0)
+    private int priority;
+
+    /** Conditions that determine whether this policy applies to a given request. */
+    @Valid
+    private MatchCondition match = new MatchCondition();
+
+    /** Subject scopes used to build the rate limit key (e.g., "ip", "user", "route"). */
+    @NotEmpty
+    private List<String> subjects = List.of();
+
+    /** Maximum number of requests allowed within the time window. */
+    @Min(1)
+    private int limit;
+
+    /** Duration of the rate limit window in seconds. */
+    @Min(1)
+    private int windowSeconds;
+}
