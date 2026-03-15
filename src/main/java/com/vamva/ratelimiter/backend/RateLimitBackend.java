@@ -12,7 +12,7 @@ import com.vamva.ratelimiter.model.RateLimitResult;
 public interface RateLimitBackend {
 
     /**
-     * Atomically increments the counter for the given key and returns the result.
+     * Atomically increments the fixed window counter and returns the result.
      *
      * @param key           the fully-qualified rate limit key (e.g., {@code rl:policy:subject:window})
      * @param limit         the maximum allowed requests in the window
@@ -21,4 +21,22 @@ public interface RateLimitBackend {
      * @return the rate limit evaluation result
      */
     RateLimitResult increment(String key, int limit, int windowSeconds, String policyId);
+
+    /**
+     * Evaluates a sliding window counter using weighted average of current and previous windows.
+     *
+     * <p>The sliding window counter smooths out boundary spikes by computing:
+     * {@code weighted_count = current_count + (previous_count * overlap_weight)}</p>
+     *
+     * @param currentKey    the key for the current window
+     * @param previousKey   the key for the previous window
+     * @param limit         the maximum allowed requests
+     * @param windowSeconds the window duration in seconds
+     * @param overlapWeight weight of the previous window (0.0 to 1.0)
+     * @param policyId      the policy identifier
+     * @return the rate limit evaluation result
+     */
+    RateLimitResult slidingWindowIncrement(String currentKey, String previousKey,
+                                           int limit, int windowSeconds,
+                                           double overlapWeight, String policyId);
 }

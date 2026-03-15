@@ -1,5 +1,7 @@
 # API Rate Limiter
 
+[![CI](https://github.com/KostasVam/api-rate-limiter/actions/workflows/ci.yml/badge.svg)](https://github.com/KostasVam/api-rate-limiter/actions/workflows/ci.yml)
+
 Distributed API rate limiter middleware with Redis-backed enforcement, per-route policies, and observability support.
 
 ## Overview
@@ -25,6 +27,7 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 
 - [x] HTTP middleware (Spring `OncePerRequestFilter`)
 - [x] Fixed Window Counter algorithm
+- [x] Sliding Window Counter algorithm
 - [x] Redis backend (distributed, Lua script for atomicity)
 - [x] In-memory backend (local/dev)
 - [x] Per-route policy matching (Ant-style path patterns)
@@ -180,6 +183,33 @@ key = rl:{policy_id}:{subject}:{window_start}
 Key:   rl:payments-per-user:user:123:28876925
 Value: 7  (integer counter)
 TTL:   65s
+```
+
+### Sliding Window Counter Algorithm
+
+Smooths out boundary spikes by computing a weighted average of current and previous windows:
+
+```
+weighted_count = current_count + (previous_count * overlap_weight)
+overlap_weight = 1.0 - (elapsed_in_window / window_seconds)
+```
+
+**Example:** limit=100 req/min, 40 seconds into the current window:
+```
+previous window: 80 requests
+current window:  30 requests
+overlap_weight = 1.0 - (40/60) = 0.333
+
+weighted = 30 + (80 * 0.333) = 57
+remaining = 100 - 57 = 43
+```
+
+Select per policy:
+```yaml
+- id: payments-per-user
+  algorithm: sliding_window    # or: fixed_window (default)
+  limit: 10
+  window-seconds: 60
 ```
 
 ### HTTP Behavior
@@ -408,20 +438,23 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [ADR-004](docs/adr/ADR-004-fail-open-default.md) | Default to fail-open on backend failure |
 | [ADR-005](docs/adr/ADR-005-composite-subject-keys.md) | Composite subject keys for rate limit scoping |
 | [ADR-006](docs/adr/ADR-006-observe-shadow-mode.md) | Observe (shadow) mode for safe policy rollout |
+| [ADR-007](docs/adr/ADR-007-sliding-window-counter.md) | Sliding Window Counter algorithm |
 
 ## Roadmap
 
 ### v1.0 (Current)
 - Fixed Window Counter algorithm
+- Sliding Window Counter algorithm
 - Redis + in-memory backends
 - HTTP rate limit headers
-- Prometheus metrics
+- Prometheus metrics + CI pipeline
 - Structured logging
-- Per-route YAML policies
+- Per-route YAML policies with per-policy algorithm selection
 - Observe (shadow) mode for safe rollout
+- k6 load test scripts
 
 ### v2.0
-- Token Bucket / Sliding Window algorithms
+- Token Bucket algorithm
 - Dynamic config reload without restart
 - Redis Cluster support
 

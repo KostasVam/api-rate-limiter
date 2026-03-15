@@ -11,7 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * In-memory rate limit backend for single-instance and development use.
  *
- * <p>Stores counters in a {@link ConcurrentHashMap} keyed by window.
+ * <p>Supports both fixed window and sliding window counter algorithms.
+ * Stores counters in a {@link ConcurrentHashMap} keyed by window.
  * Expired entries are cleaned up every 60 seconds via a scheduled task.</p>
  *
  * <p><strong>Warning:</strong> Counters are not shared across application instances.
@@ -38,6 +39,37 @@ public class InMemoryBackend implements RateLimitBackend {
         long retryAfter = resetEpoch - now;
 
         if (current > limit) {
+            return RateLimitResult.rejected(limit, resetEpoch, policyId, retryAfter);
+        }
+
+        return RateLimitResult.allowed(limit, remaining, resetEpoch, policyId);
+    }
+
+    @Override
+    public RateLimitResult slidingWindowIncrement(String currentKey, String previousKey,
+                                                   int limit, int windowSeconds,
+                                                   double overlapWeight, String policyId) {
+        long now = Instant.now().getEpochSecond();
+        long windowStart = (now / windowSeconds) * windowSeconds;
+        long resetEpoch = windowStart + windowSeconds;
+
+        // Increment current window
+        WindowEntry currentEntry = windows.computeIfAbsent(currentKey,
+                k -> new WindowEntry(new AtomicInteger(0), resetEpoch));
+        int currentCount = currentEntry.counter().incrementAndGet();
+
+        // Read previous window (may not exist)
+        WindowEntry previousEntry = windows.get(previousKey);
+        int previousCount = previousEntry != null ? previousEntry.counter().get() : 0;
+
+        // Weighted count
+        double weightedCount = currentCount + (previousCount * overlapWeight);
+        int effectiveCount = (int) Math.ceil(weightedCount);
+
+        int remaining = Math.max(0, limit - effectiveCount);
+        long retryAfter = resetEpoch - now;
+
+        if (effectiveCount > limit) {
             return RateLimitResult.rejected(limit, resetEpoch, policyId, retryAfter);
         }
 

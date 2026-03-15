@@ -59,4 +59,7 @@ public class Policy {
     /** Duration of the rate limit window in seconds. */
     @Min(1)
     private int windowSeconds;
+
+    /** Rate limiting algorithm. Defaults to fixed window. */
+    private Algorithm algorithm = Algorithm.FIXED_WINDOW;
 }

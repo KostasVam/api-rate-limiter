@@ -3,6 +3,7 @@ package com.vamva.ratelimiter.engine;
 import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
+import com.vamva.ratelimiter.model.Algorithm;
 import com.vamva.ratelimiter.model.Policy;
 import com.vamva.ratelimiter.model.PolicyMode;
 import com.vamva.ratelimiter.model.RateLimitResult;
@@ -85,11 +86,7 @@ public class RateLimitEngine {
                 continue;
             }
 
-            long windowStart = Instant.now().getEpochSecond() / policy.getWindowSeconds();
-            String redisKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey.get(), windowStart);
-
-            RateLimitResult result = backend.increment(redisKey, policy.getLimit(),
-                    policy.getWindowSeconds(), policy.getId());
+            RateLimitResult result = evaluatePolicy(policy, subjectKey.get());
 
             boolean isObserve = policy.getMode() == PolicyMode.OBSERVE;
             String decision = resolveDecisionLabel(result, isObserve);
@@ -129,6 +126,34 @@ public class RateLimitEngine {
         // All enforced policies allowed — return most restrictive (lowest remaining)
         return enforcedResults.stream()
                 .min(Comparator.comparingInt(RateLimitResult::getRemaining));
+    }
+
+    /**
+     * Evaluates a single policy using the configured algorithm.
+     */
+    private RateLimitResult evaluatePolicy(Policy policy, String subjectKey) {
+        long now = Instant.now().getEpochSecond();
+        long windowStart = now / policy.getWindowSeconds();
+
+        if (policy.getAlgorithm() == Algorithm.SLIDING_WINDOW) {
+            long previousWindowStart = windowStart - 1;
+            String currentKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, windowStart);
+            String previousKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, previousWindowStart);
+
+            // Overlap weight: how far we are into the current window
+            // At window start: weight=1.0 (previous fully counts)
+            // At window end: weight=0.0 (previous doesn't count)
+            long windowStartEpoch = windowStart * policy.getWindowSeconds();
+            double elapsed = now - windowStartEpoch;
+            double overlapWeight = 1.0 - (elapsed / policy.getWindowSeconds());
+
+            return backend.slidingWindowIncrement(currentKey, previousKey,
+                    policy.getLimit(), policy.getWindowSeconds(), overlapWeight, policy.getId());
+        }
+
+        // Default: fixed window
+        String redisKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, windowStart);
+        return backend.increment(redisKey, policy.getLimit(), policy.getWindowSeconds(), policy.getId());
     }
 
     private String resolveDecisionLabel(RateLimitResult result, boolean isObserve) {
