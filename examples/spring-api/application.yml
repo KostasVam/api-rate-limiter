@@ -1,0 +1,78 @@
+# Example rate limiter configuration for a typical REST API
+#
+# This configuration protects:
+#   - Login endpoint: 5 requests per minute per IP (brute-force protection)
+#   - Payment endpoint: 10 requests per minute per user (abuse prevention)
+#   - Registration: 3 requests per minute per IP (spam prevention)
+
+server:
+  port: 8080
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+rate-limiter:
+  enabled: true
+  fail-open: true
+  backend: redis
+
+  policies:
+    # Protect login against brute-force attacks
+    - id: login-brute-force
+      enabled: true
+      priority: 1
+      match:
+        paths:
+          - /api/auth/login
+        methods:
+          - POST
+      subjects:
+        - ip
+      limit: 5
+      window-seconds: 60
+
+    # Prevent payment abuse per user
+    - id: payment-abuse
+      enabled: true
+      priority: 2
+      match:
+        paths:
+          - /api/payments/**
+        methods:
+          - POST
+          - PUT
+      subjects:
+        - user
+        - route
+      limit: 10
+      window-seconds: 60
+
+    # Prevent registration spam
+    - id: registration-spam
+      enabled: true
+      priority: 3
+      match:
+        paths:
+          - /api/auth/register
+        methods:
+          - POST
+      subjects:
+        - ip
+      limit: 3
+      window-seconds: 60
+
+    # Global API rate limit per API key
+    - id: global-api-limit
+      enabled: true
+      priority: 10
+      match:
+        paths:
+          - /api/**
+        methods: []          # all methods
+      subjects:
+        - api_key
+      limit: 1000
+      window-seconds: 60

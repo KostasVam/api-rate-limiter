@@ -275,6 +275,21 @@ api-rate-limiter/
 │       └── integration/
 │           ├── TestController.java
 │           └── RateLimiterIntegrationTest.java
+├── docs/
+│   ├── architecture.md
+│   ├── security.md
+│   ├── performance.md
+│   ├── benchmarks.md
+│   └── adr/
+│       ├── ADR-001-use-redis-backend.md
+│       ├── ADR-002-fixed-window-algorithm.md
+│       ├── ADR-003-middleware-design.md
+│       ├── ADR-004-fail-open-default.md
+│       └── ADR-005-composite-subject-keys.md
+├── examples/
+│   └── spring-api/
+│       ├── ExampleApplication.java
+│       └── application.yml
 ├── docker-compose.yml
 ├── build.gradle.kts
 ├── settings.gradle.kts
@@ -324,12 +339,68 @@ Available when running with `demo` profile:
 | POST   | `/api/payments`   | User + Route (10 req/min) |
 | GET    | `/api/health`     | Not rate limited          |
 
-## Future Work
+## Design Principles
 
+| Principle | How It's Applied |
+|---|---|
+| **Deterministic decisions** | Same request at same time always produces same allow/reject result |
+| **Minimal runtime overhead** | Single Redis round trip per policy; sub-3ms p95 latency |
+| **Framework-agnostic policy model** | Policies are YAML data, not annotations or code |
+| **Observability-first** | Every decision is metered (Prometheus) and logged (structured SLF4J) |
+| **Safe failure semantics** | Fail-open by default; Redis outage does not cascade to application outage |
+| **Pluggable components** | Backend, subject extractors, and algorithms are interfaces with swappable implementations |
+
+## Comparison with Existing Solutions
+
+| Tool | Type | Scope |
+|---|---|---|
+| Envoy Rate Limit | Proxy-level service | External gRPC service, infrastructure-heavy |
+| Kong Rate Limiting | API Gateway plugin | Tied to Kong gateway |
+| NGINX `limit_req` | Reverse proxy directive | Limited to IP-based, no composite subjects |
+| Resilience4j | Client-side library | In-process only, not distributed |
+| Bucket4j | Java library | In-process or distributed, lower-level API |
+| **This project** | **Embedded middleware** | **Spring Boot filter, Redis-backed, per-route policies, composite subjects** |
+
+This project fills the gap between proxy-level rate limiting (infrastructure-heavy) and client-side libraries (not distributed) by providing an embeddable middleware with distributed enforcement.
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Architecture](docs/architecture.md) | Component overview, sequence diagrams, deployment topology |
+| [Security](docs/security.md) | Threat model, attack vectors, mitigations |
+| [Performance](docs/performance.md) | Latency model, throughput analysis, load testing plan |
+| [Benchmarks](docs/benchmarks.md) | Load test results and Redis resource usage |
+
+### Architecture Decision Records
+
+| ADR | Decision |
+|---|---|
+| [ADR-001](docs/adr/ADR-001-use-redis-backend.md) | Use Redis as rate limit backend |
+| [ADR-002](docs/adr/ADR-002-fixed-window-algorithm.md) | Use Fixed Window Counter algorithm |
+| [ADR-003](docs/adr/ADR-003-middleware-design.md) | Implement as Servlet Filter middleware |
+| [ADR-004](docs/adr/ADR-004-fail-open-default.md) | Default to fail-open on backend failure |
+| [ADR-005](docs/adr/ADR-005-composite-subject-keys.md) | Composite subject keys for rate limit scoping |
+
+## Roadmap
+
+### v1.0 (Current)
+- Fixed Window Counter algorithm
+- Redis + in-memory backends
+- HTTP rate limit headers
+- Prometheus metrics
+- Structured logging
+- Per-route YAML policies
+
+### v2.0
 - Token Bucket / Sliding Window algorithms
-- Admin API for runtime policy management
-- Dashboard (Grafana templates)
 - Dynamic config reload without restart
-- ML-based anomaly detection
-- WAF / bot detection integration
+- Shadow mode (log-only, no enforcement)
+- Redis Cluster support
+
+### v3.0
+- Centralized rate limit service (gRPC)
+- Admin API for runtime policy management
+- Grafana dashboard templates
 - Billing / quota management
+- Multi-region support
