@@ -52,6 +52,9 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Rate limit headers on error responses (ResponseBodyAdvice)
 - [x] Annotation-based `@RateLimit` for controller methods
 - [x] Spring Boot Starter packaging (auto-configuration, no component scanning required)
+- [x] PolicyStore SPI for pluggable policy sources (YAML, DB, API)
+- [x] JMH microbenchmark suite (algorithm, policy resolution, key building)
+- [x] Algorithm comparison documentation
 
 ## Architecture
 
@@ -529,6 +532,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [Performance](docs/performance.md) | Latency model, throughput analysis, load testing plan |
 | [Benchmarks](docs/benchmarks.md) | Load test results and Redis resource usage |
 | [Grafana](docs/grafana.md) | Dashboard template, panel descriptions, alerting recommendations |
+| [Algorithm Comparison](docs/algorithm-comparison.md) | When to use each algorithm, trade-offs, decision matrix |
 | [Redis Deployment](docs/redis-deployment.md) | Standalone, Sentinel, Cluster config, connection pooling, monitoring |
 
 ### Architecture Decision Records

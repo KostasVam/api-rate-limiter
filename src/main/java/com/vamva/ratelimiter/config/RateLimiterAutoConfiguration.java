@@ -11,6 +11,8 @@ import com.vamva.ratelimiter.filter.RateLimitFilter;
 import com.vamva.ratelimiter.filter.RateLimitHeaderAdvice;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.policy.PolicyResolver;
+import com.vamva.ratelimiter.policy.PolicyStore;
+import com.vamva.ratelimiter.policy.YamlPolicyStore;
 import com.vamva.ratelimiter.subject.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -113,9 +115,15 @@ public class RateLimiterAutoConfiguration {
     // ── Policy ───────────────────────────────────────────────────────────
 
     @Bean
+    @ConditionalOnMissingBean(PolicyStore.class)
+    public PolicyStore yamlPolicyStore(RateLimiterProperties properties) {
+        return new YamlPolicyStore(properties);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(PolicyReloadService.class)
-    public PolicyReloadService policyReloadService(RateLimiterProperties properties) {
-        return new PolicyReloadService(properties);
+    public PolicyReloadService policyReloadService(PolicyStore policyStore, RateLimiterProperties properties) {
+        return new PolicyReloadService(policyStore, properties);
     }
 
     @Bean

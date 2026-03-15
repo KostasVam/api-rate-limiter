@@ -3,6 +3,7 @@ plugins {
     `maven-publish`
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
+    id("me.champeau.jmh") version "0.7.2"
 }
 
 group = "com.vamva"
@@ -39,6 +40,14 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+jmh {
+    warmupIterations.set(2)
+    iterations.set(3)
+    fork.set(1)
+    resultFormat.set("JSON")
+    resultsFile.set(project.file("build/reports/jmh/results.json"))
 }
 
 // Library JAR: exclude demo app classes, produce plain JAR for consumers

@@ -40,7 +40,7 @@ public class PolicyReloadEndpoint {
     @WriteOperation
     public Map<String, Object> reload() {
         int before = reloadService.getActivePolicies().size();
-        reloadService.reloadFromProperties();
+        reloadService.reload();
         int after = reloadService.getActivePolicies().size();
 
         Map<String, Object> result = new LinkedHashMap<>();

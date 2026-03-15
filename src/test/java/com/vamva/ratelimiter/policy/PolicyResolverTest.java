@@ -73,7 +73,7 @@ class PolicyResolverTest {
     private PolicyResolver createResolver(List<Policy> policies) {
         RateLimiterProperties props = new RateLimiterProperties();
         props.setPolicies(policies);
-        PolicyReloadService reloadService = new PolicyReloadService(props);
+        PolicyReloadService reloadService = new PolicyReloadService(new com.vamva.ratelimiter.policy.YamlPolicyStore(props), props);
         return new PolicyResolver(reloadService);
     }
 
