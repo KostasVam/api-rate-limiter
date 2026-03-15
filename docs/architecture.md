@@ -172,7 +172,7 @@ If backend evaluation fails (Redis connection error, timeout, unexpected excepti
 In both modes:
 - Backend errors **never** propagate as unhandled exceptions to the application request pipeline
 - Errors are always observable via metrics and logs
-- The filter continues to function for subsequent requests (no circuit-breaking state in v1)
+- A Resilience4j circuit breaker wraps all Redis calls: after sustained failures (50% failure rate over 10 calls), the circuit opens and short-circuits to fail-open/closed for 10 seconds before probing recovery
 
 ## Deployment Topology
 

@@ -17,8 +17,8 @@
 | **Backend Errors** | Stat | Redis error count over 5 minutes (green/yellow/red thresholds) |
 | **Shadow Mode Would-Reject** | Stat | Observe-mode rejections over 5 minutes |
 | **Allowed vs Rejected** | Pie chart | Hourly ratio of allowed to rejected requests |
-| **Top Rejected Routes** | Table | Top 10 routes by rejection count in the last hour |
-| **Request Rate by Route** | Time series | Per-route request rate for capacity planning |
+| **Top Rejected Policies** | Table | Top 10 policies by rejection count in the last hour |
+| **Request Rate by Policy** | Time series | Per-policy request rate for capacity planning |
 
 ## Dashboard Layout
 
@@ -31,9 +31,9 @@
 │  [p50/p95/p99]           │  Errors     │  Would-    │
 │                          │  [stat]     │  Reject    │
 ├──────────────────────────┼─────────────┼────────────┤
-│  Request Rate by Route   │  Allowed vs │  Top       │
-│  [per route lines]       │  Rejected   │  Rejected  │
-│                          │  [pie]      │  Routes    │
+│  Request Rate by Policy  │  Allowed vs │  Top       │
+│  [per policy lines]      │  Rejected   │  Rejected  │
+│                          │  [pie]      │  Policies  │
 └──────────────────────────┴─────────────┴────────────┘
 ```
 

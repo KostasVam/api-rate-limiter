@@ -11,16 +11,16 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Prometheus metrics instrumentation for the rate limiter.
  *
- * <p>Provides counters for request decisions (allowed/rejected), backend errors,
- * and a timer for evaluation duration. Meter instances are cached to avoid
- * registry lookups on every request.</p>
+ * <p>Uses low-cardinality labels only ({@code policy_id}, {@code decision}) to prevent
+ * metric explosion from dynamic URI segments. The {@code policy_id} implicitly encodes
+ * the route pattern it covers.</p>
  *
  * <p>Exposed metrics:</p>
  * <ul>
- *   <li>{@code rate_limiter_requests_total} — total evaluated requests (policy_id, decision, route)</li>
- *   <li>{@code rate_limiter_allowed_total} — allowed requests (policy_id, route)</li>
- *   <li>{@code rate_limiter_rejected_total} — rejected requests (policy_id, route)</li>
- *   <li>{@code rate_limiter_observed_would_reject_total} — shadow mode rejections (policy_id, route)</li>
+ *   <li>{@code rate_limiter_requests_total} — total evaluated requests (policy_id, decision)</li>
+ *   <li>{@code rate_limiter_allowed_total} — allowed requests (policy_id)</li>
+ *   <li>{@code rate_limiter_rejected_total} — rejected requests (policy_id)</li>
+ *   <li>{@code rate_limiter_observed_would_reject_total} — shadow mode rejections (policy_id)</li>
  *   <li>{@code rate_limiter_errors_total} — backend failures</li>
  *   <li>{@code rate_limiter_eval_duration} — evaluation time histogram</li>
  * </ul>
@@ -44,21 +44,20 @@ public class RateLimitMetrics {
     }
 
     /**
-     * Records a rate limit decision for the given policy and route.
+     * Records a rate limit decision for the given policy.
      *
-     * @param policyId the evaluated policy
-     * @param route    the request route (e.g., "POST /api/payments")
+     * @param policyId the evaluated policy (low-cardinality, safe for metric labels)
      * @param allowed  whether the request was allowed
      */
-    public void recordRequest(String policyId, String route, boolean allowed) {
+    public void recordRequest(String policyId, boolean allowed) {
         String decision = allowed ? "allowed" : "rejected";
 
-        getOrCreateCounter("rate_limiter_requests_total", policyId, route, decision).increment();
+        getOrCreateCounter("rate_limiter_requests_total", policyId, decision).increment();
 
         if (allowed) {
-            getOrCreateCounter("rate_limiter_allowed_total", policyId, route, null).increment();
+            getOrCreateCounter("rate_limiter_allowed_total", policyId, null).increment();
         } else {
-            getOrCreateCounter("rate_limiter_rejected_total", policyId, route, null).increment();
+            getOrCreateCounter("rate_limiter_rejected_total", policyId, null).increment();
         }
     }
 
@@ -75,10 +74,9 @@ public class RateLimitMetrics {
      * Records a shadow mode rejection — the policy would have rejected, but didn't.
      *
      * @param policyId the observed policy
-     * @param route    the request route
      */
-    public void recordObservedRejection(String policyId, String route) {
-        getOrCreateCounter("rate_limiter_observed_would_reject_total", policyId, route, null).increment();
+    public void recordObservedRejection(String policyId) {
+        getOrCreateCounter("rate_limiter_observed_would_reject_total", policyId, null).increment();
     }
 
     /** Increments the backend error counter. */
@@ -86,12 +84,11 @@ public class RateLimitMetrics {
         errorCounter.increment();
     }
 
-    private Counter getOrCreateCounter(String name, String policyId, String route, String decision) {
-        String cacheKey = name + ":" + policyId + ":" + route + ":" + decision;
+    private Counter getOrCreateCounter(String name, String policyId, String decision) {
+        String cacheKey = name + ":" + policyId + ":" + decision;
         return counterCache.computeIfAbsent(cacheKey, k -> {
             Counter.Builder builder = Counter.builder(name)
-                    .tag("policy_id", policyId)
-                    .tag("route", route);
+                    .tag("policy_id", policyId);
             if (decision != null) {
                 builder.tag("decision", decision);
             }

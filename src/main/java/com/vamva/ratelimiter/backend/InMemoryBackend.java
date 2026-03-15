@@ -18,6 +18,11 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p><strong>Warning:</strong> Counters are not shared across application instances.
  * Use {@link RedisBackend} for distributed deployments.</p>
+ *
+ * <p><strong>Concurrency:</strong> Window-based algorithms use {@link java.util.concurrent.ConcurrentHashMap}
+ * with {@link java.util.concurrent.atomic.AtomicInteger} for lock-free counting. Token bucket uses
+ * per-bucket synchronization for atomic refill-and-consume. This backend prioritizes correctness
+ * over maximum throughput — use {@link RedisBackend} for high-concurrency production workloads.</p>
  */
 @Slf4j
 public class InMemoryBackend implements RateLimitBackend {
@@ -105,20 +110,35 @@ public class InMemoryBackend implements RateLimitBackend {
         }
     }
 
-    /** Removes expired window entries to prevent memory leaks. */
+    /**
+     * Removes expired window entries and stale bucket entries to prevent memory leaks.
+     * Buckets are considered stale if they haven't been accessed for more than 5 minutes.
+     */
     @Scheduled(fixedRate = 60_000)
     public void cleanup() {
         long now = Instant.now().getEpochSecond();
-        int removed = 0;
-        var iterator = windows.entrySet().iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().getValue().expiresAt() < now) {
-                iterator.remove();
-                removed++;
+        int removedWindows = 0;
+        int removedBuckets = 0;
+
+        var windowIterator = windows.entrySet().iterator();
+        while (windowIterator.hasNext()) {
+            if (windowIterator.next().getValue().expiresAt() < now) {
+                windowIterator.remove();
+                removedWindows++;
             }
         }
-        if (removed > 0) {
-            log.debug("Cleaned up {} expired rate limit windows", removed);
+
+        long bucketStaleThreshold = now - 300; // 5 minutes
+        var bucketIterator = buckets.entrySet().iterator();
+        while (bucketIterator.hasNext()) {
+            if (bucketIterator.next().getValue().lastRefill < bucketStaleThreshold) {
+                bucketIterator.remove();
+                removedBuckets++;
+            }
+        }
+
+        if (removedWindows > 0 || removedBuckets > 0) {
+            log.debug("Cleaned up {} expired windows and {} stale buckets", removedWindows, removedBuckets);
         }
     }
 

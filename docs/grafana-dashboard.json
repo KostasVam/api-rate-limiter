@@ -174,7 +174,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
       "targets": [
         {
-          "expr": "topk(10, sum(increase(rate_limiter_rejected_total[1h])) by (route, policy_id))",
+          "expr": "topk(10, sum(increase(rate_limiter_rejected_total[1h])) by (policy_id))",
           "format": "table",
           "instant": true
         }
@@ -191,13 +191,13 @@
     },
     {
       "id": 8,
-      "title": "Request Rate by Route",
+      "title": "Request Rate by Policy",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
-          "expr": "sum(rate(rate_limiter_requests_total[1m])) by (route)",
-          "legendFormat": "{{route}}"
+          "expr": "sum(rate(rate_limiter_requests_total[1m])) by (policy_id)",
+          "legendFormat": "{{policy_id}}"
         }
       ],
       "fieldConfig": {

@@ -94,7 +94,7 @@ class RateLimitFilterTest {
 
         filter.doFilterInternal(request, response, filterChain);
 
-        verify(metrics).recordRequest(eq("test"), eq("GET /api/test"), eq(true));
+        verify(metrics).recordRequest(eq("test"), eq(true));
         verify(metrics).recordEvaluationTime(anyLong());
     }
 

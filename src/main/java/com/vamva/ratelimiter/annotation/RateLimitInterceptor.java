@@ -1,10 +1,9 @@
 package com.vamva.ratelimiter.annotation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
+import com.vamva.ratelimiter.engine.PolicyEvaluator;
 import com.vamva.ratelimiter.filter.RateLimitFilter;
-import com.vamva.ratelimiter.model.Algorithm;
 import com.vamva.ratelimiter.model.Policy;
 import com.vamva.ratelimiter.model.PolicyMode;
 import com.vamva.ratelimiter.model.RateLimitResult;
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Spring MVC interceptor that evaluates {@link RateLimit} annotations on controller methods.
  *
- * <p>Runs after the filter chain but before the controller method executes.
- * If the annotated rate limit is exceeded, sets a request attribute that the
- * {@link RateLimitFilter} can detect, or throws a rate limit exception.</p>
+ * <p>Uses the shared {@link PolicyEvaluator} for algorithm dispatch and backend calls,
+ * ensuring identical behavior between annotation-based and YAML-based policies.</p>
  *
  * <p>Annotation-based policies coexist with YAML policies. Both are evaluated
  * independently — if either rejects, the request is rejected.</p>
@@ -38,17 +35,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final RateLimiterProperties properties;
     private final CompositeKeyBuilder keyBuilder;
-    private final RateLimitBackend backend;
+    private final PolicyEvaluator policyEvaluator;
     private final ObjectMapper objectMapper;
     private final Map<String, Policy> policyCache = new ConcurrentHashMap<>();
 
     public RateLimitInterceptor(RateLimiterProperties properties,
                                 CompositeKeyBuilder keyBuilder,
-                                RateLimitBackend backend,
+                                PolicyEvaluator policyEvaluator,
                                 ObjectMapper objectMapper) {
         this.properties = properties;
         this.keyBuilder = keyBuilder;
-        this.backend = backend;
+        this.policyEvaluator = policyEvaluator;
         this.objectMapper = objectMapper;
     }
 
@@ -75,7 +72,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        RateLimitResult result = evaluate(policy, subjectKey.get());
+        // Use shared PolicyEvaluator — same execution path as YAML policies
+        RateLimitResult rawResult = policyEvaluator.evaluate(policy, subjectKey.get());
+
+        // Enrich with custom error config
+        RateLimitResult result = rawResult;
+        if (!rawResult.isAllowed()) {
+            result = RateLimitResult.rejected(
+                    rawResult.getLimit(), rawResult.getResetEpochSeconds(),
+                    rawResult.getPolicyId(), rawResult.getRetryAfterSeconds(),
+                    policy.getEffectiveErrorMessage(), policy.getEffectiveErrorStatusCode());
+        }
 
         if (!result.isAllowed()) {
             String route = request.getMethod() + " " + request.getRequestURI();
@@ -109,32 +116,6 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         response.setHeader("X-RateLimit-Reset", String.valueOf(result.getResetEpochSeconds()));
 
         return true;
-    }
-
-    private RateLimitResult evaluate(Policy policy, String subjectKey) {
-        long now = Instant.now().getEpochSecond();
-        String hashTag = String.format("{%s:%s}", policy.getId(), subjectKey);
-
-        if (policy.getAlgorithm() == Algorithm.TOKEN_BUCKET) {
-            String bucketKey = String.format("rl:tb:%s", hashTag);
-            int capacity = policy.getEffectiveBurstCapacity();
-            double refillRate = (double) policy.getLimit() / policy.getWindowSeconds();
-            return backend.tokenBucketConsume(bucketKey, capacity, refillRate, policy.getId());
-        }
-
-        long windowStart = now / policy.getWindowSeconds();
-
-        if (policy.getAlgorithm() == Algorithm.SLIDING_WINDOW) {
-            String currentKey = String.format("rl:%s:%d", hashTag, windowStart);
-            String previousKey = String.format("rl:%s:%d", hashTag, windowStart - 1);
-            long windowStartEpoch = windowStart * policy.getWindowSeconds();
-            double overlapWeight = 1.0 - ((double) (now - windowStartEpoch) / policy.getWindowSeconds());
-            return backend.slidingWindowIncrement(currentKey, previousKey,
-                    policy.getLimit(), policy.getWindowSeconds(), overlapWeight, policy.getId());
-        }
-
-        String redisKey = String.format("rl:%s:%d", hashTag, windowStart);
-        return backend.increment(redisKey, policy.getLimit(), policy.getWindowSeconds(), policy.getId());
     }
 
     private Policy toPolicy(RateLimit annotation) {

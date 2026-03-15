@@ -85,10 +85,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         setRateLimitHeaders(response, result);
 
         if (result.isAllowed()) {
-            metrics.recordRequest(result.getPolicyId(), route, true);
+            metrics.recordRequest(result.getPolicyId(), true);
             filterChain.doFilter(request, response);
         } else {
-            metrics.recordRequest(result.getPolicyId(), route, false);
+            metrics.recordRequest(result.getPolicyId(), false);
 
             response.setStatus(result.getErrorStatusCode());
             response.setHeader("Retry-After", String.valueOf(result.getRetryAfterSeconds()));

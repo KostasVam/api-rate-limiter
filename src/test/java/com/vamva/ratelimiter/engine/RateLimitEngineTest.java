@@ -3,6 +3,7 @@ package com.vamva.ratelimiter.engine;
 import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.config.PolicyReloadService;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
+import com.vamva.ratelimiter.engine.PolicyEvaluator;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.MatchCondition;
 import com.vamva.ratelimiter.model.Policy;
@@ -43,7 +44,8 @@ class RateLimitEngineTest {
         backend = mock(RateLimitBackend.class);
         metrics = mock(RateLimitMetrics.class);
 
-        engine = new RateLimitEngine(properties, resolver, keyBuilder, backend, metrics);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
     }
 
     @Test
@@ -103,7 +105,8 @@ class RateLimitEngineTest {
         // Recreate engine with updated policies
         PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
-        engine = new RateLimitEngine(properties, resolver, keyBuilder, backend, metrics);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
 
         when(backend.increment(anyString(), eq(10), eq(60), eq("observe-policy")))
                 .thenReturn(RateLimitResult.rejected(10, 1000L, "observe-policy", 42));
@@ -117,7 +120,7 @@ class RateLimitEngineTest {
         assertTrue(result.isEmpty());
 
         // But should record the observed rejection metric
-        verify(metrics).recordObservedRejection(eq("observe-policy"), anyString());
+        verify(metrics).recordObservedRejection(eq("observe-policy"));
     }
 
     @Test
@@ -128,7 +131,8 @@ class RateLimitEngineTest {
 
         PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
-        engine = new RateLimitEngine(properties, resolver, keyBuilder, backend, metrics);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
 
         when(backend.increment(anyString(), eq(10), eq(60), eq("observe-policy")))
                 .thenReturn(RateLimitResult.allowed(10, 9, 1000L, "observe-policy"));

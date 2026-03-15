@@ -313,10 +313,10 @@ Default: `open` (configured via `rate-limiter.fail-open`)
 
 | Metric                           | Type      | Labels                             |
 |----------------------------------|-----------|-------------------------------------|
-| `rate_limiter_requests_total`    | Counter   | `policy_id`, `decision`, `route`    |
-| `rate_limiter_allowed_total`     | Counter   | `policy_id`, `route`                |
-| `rate_limiter_rejected_total`    | Counter   | `policy_id`, `route`                |
-| `rate_limiter_observed_would_reject_total` | Counter | `policy_id`, `route`       |
+| `rate_limiter_requests_total`    | Counter   | `policy_id`, `decision`             |
+| `rate_limiter_allowed_total`     | Counter   | `policy_id`                         |
+| `rate_limiter_rejected_total`    | Counter   | `policy_id`                         |
+| `rate_limiter_observed_would_reject_total` | Counter | `policy_id`                |
 | `rate_limiter_errors_total`      | Counter   | —                                   |
 | `rate_limiter_eval_duration`     | Timer     | —                                   |
 
