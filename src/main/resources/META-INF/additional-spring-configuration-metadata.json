@@ -1,0 +1,73 @@
+{
+  "groups": [
+    {
+      "name": "rate-limiter",
+      "type": "com.vamva.ratelimiter.config.RateLimiterProperties",
+      "description": "Configuration properties for the API rate limiter."
+    }
+  ],
+  "properties": [
+    {
+      "name": "rate-limiter.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the rate limiter is enabled globally.",
+      "defaultValue": true
+    },
+    {
+      "name": "rate-limiter.fail-open",
+      "type": "java.lang.Boolean",
+      "description": "If true, requests are allowed when Redis is unavailable. If false, requests are rejected.",
+      "defaultValue": true
+    },
+    {
+      "name": "rate-limiter.backend",
+      "type": "java.lang.String",
+      "description": "Storage backend type: 'redis' for distributed deployments, 'in-memory' for local/dev.",
+      "defaultValue": "redis"
+    },
+    {
+      "name": "rate-limiter.exclude-paths",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Ant-style path patterns to exclude from rate limiting (e.g., /actuator/**, /health)."
+    },
+    {
+      "name": "rate-limiter.policies",
+      "type": "java.util.List<com.vamva.ratelimiter.model.Policy>",
+      "description": "List of rate limiting policies to enforce."
+    }
+  ],
+  "hints": [
+    {
+      "name": "rate-limiter.backend",
+      "values": [
+        { "value": "redis", "description": "Redis backend (distributed, production)." },
+        { "value": "in-memory", "description": "In-memory backend (single instance, development)." }
+      ]
+    },
+    {
+      "name": "rate-limiter.policies[].mode",
+      "values": [
+        { "value": "enforce", "description": "Reject requests that exceed the limit." },
+        { "value": "observe", "description": "Evaluate and log/meter, but never reject (shadow mode)." }
+      ]
+    },
+    {
+      "name": "rate-limiter.policies[].algorithm",
+      "values": [
+        { "value": "fixed_window", "description": "Fixed Window Counter — simple, fast, boundary spike possible." },
+        { "value": "sliding_window", "description": "Sliding Window Counter — smooths boundary spikes." },
+        { "value": "token_bucket", "description": "Token Bucket — allows controlled bursts." }
+      ]
+    },
+    {
+      "name": "rate-limiter.policies[].subjects[]",
+      "values": [
+        { "value": "ip", "description": "Client IP address (X-Forwarded-For or remoteAddr)." },
+        { "value": "user", "description": "Authenticated user (Principal or X-User-Id header)." },
+        { "value": "api_key", "description": "API key (X-API-Key header)." },
+        { "value": "tenant", "description": "Tenant identifier (X-Tenant-Id header)." },
+        { "value": "route", "description": "HTTP method + request path (e.g., POST:/api/payments)." }
+      ]
+    }
+  ]
+}
