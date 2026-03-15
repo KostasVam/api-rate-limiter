@@ -6,6 +6,7 @@ import com.vamva.ratelimiter.model.Policy;
 import com.vamva.ratelimiter.model.PolicyMode;
 import com.vamva.ratelimiter.model.RateLimitResult;
 import com.vamva.ratelimiter.policy.PolicyResolver;
+import com.vamva.ratelimiter.policy.RouteNormalizer;
 import com.vamva.ratelimiter.subject.CompositeKeyBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -66,7 +67,7 @@ public class RateLimitEngine {
             return Optional.empty();
         }
 
-        String route = request.getMethod() + " " + request.getRequestURI();
+        String route = RouteNormalizer.logRoute(request);
         List<RateLimitResult> enforcedResults = new ArrayList<>();
 
         for (Policy policy : policies) {

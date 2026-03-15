@@ -116,15 +116,31 @@ sequenceDiagram
 
 **Decision semantics:** when multiple policies allow the request, response headers are derived from the most restrictive matched policy, defined as the policy with the lowest remaining quota after evaluation. When multiple policies reject, the one with the shortest `retryAfter` is returned to give the client the earliest retry opportunity.
 
+### Algorithm vs Backend Layering
+
+The architecture separates **algorithm dispatch** from **storage primitives**:
+
+- **`PolicyEvaluator`** — selects the algorithm (fixed window, sliding window, token bucket), constructs Redis keys with Cluster-compatible hash tags, and calls the appropriate backend method. This is the algorithm layer.
+- **`RateLimitBackend`** — provides atomic storage primitives (`increment`, `slidingWindowIncrement`, `tokenBucketConsume`). Each method is a thin wrapper around a Lua script or in-memory data structure.
+
+This means new algorithms are added by:
+1. Adding a method to `RateLimitBackend` interface + both implementations
+2. Adding dispatch logic in `PolicyEvaluator`
+3. Adding the enum value to `Algorithm`
+
+The backend is not "one algorithm per implementation" — it's a storage primitive provider that the algorithm layer orchestrates.
+
 ### Backend Contract
 
-For each evaluated policy, the backend must atomically:
+For each algorithm, the backend must atomically execute its operation:
 
-1. **Increment** the active counter for the given key
-2. **Initialize TTL** if the key is newly created (`EXPIRE` on first `INCR`)
-3. **Return** the current count and remaining window TTL
+| Algorithm | Backend Method | Atomicity Guarantee |
+|---|---|---|
+| Fixed Window | `increment()` | INCR + conditional EXPIRE |
+| Sliding Window | `slidingWindowIncrement()` | INCR current + GET previous |
+| Token Bucket | `tokenBucketConsume()` | Refill + consume in single Lua script |
 
-The backend is responsible for window isolation — each `{policy, subject, window_start}` tuple maps to exactly one counter. The engine computes `allowed = (count <= limit)` and `remaining = max(0, limit - count)` from the backend response.
+All methods return the current state (count/tokens, TTL) and the engine computes the allow/reject decision.
 
 ### Redis Key Lifecycle
 

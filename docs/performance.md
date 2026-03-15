@@ -1,26 +1,28 @@
 # Performance Characteristics
 
-## Latency Model
+## Measured Latency
 
-Each rate-limited request adds one synchronous Redis round trip to the request path.
+Each rate-limited request adds one synchronous Redis round trip to the request path. All numbers below are from JMH microbenchmarks and k6 HTTP load tests.
 
-### Per-Request Overhead
+### Per-Request Overhead (Measured)
 
-| Operation | Expected Latency |
-|---|---|
-| Policy resolution (in-memory) | < 0.1ms |
-| Subject extraction (in-memory) | < 0.1ms |
-| Redis Lua script execution | 0.5 - 2ms (local network) |
-| Header serialization | < 0.1ms |
-| **Total overhead** | **~1 - 3ms per request** |
-
-### Latency Targets
-
-| Percentile | Target (local Redis) | Target (remote Redis) |
+| Operation | Measured Latency | Source |
 |---|---|---|
-| p50 | < 1ms | < 5ms |
-| p95 | < 3ms | < 10ms |
-| p99 | < 5ms | < 20ms |
+| Policy resolution (5 policies) | ~1.6 μs | JMH |
+| Policy resolution (100 policies) | ~26 μs | JMH |
+| Subject extraction (single) | ~76 ns | JMH |
+| Subject extraction (triple) | ~250 ns | JMH |
+| Algorithm computation | < 1 μs | JMH |
+| Redis Lua script execution | 1-3 ms | k6 (local Docker) |
+| **Total filter overhead (p95)** | **~3 ms** | k6 |
+
+### HTTP Latency (Measured with k6)
+
+| Percentile | Measured (local Redis) |
+|---|---|
+| p50 | 1.0 - 1.4 ms |
+| p95 | 2.3 - 3.2 ms |
+| p99 | 3.5 - 4.1 ms |
 
 Measured via `rate_limiter_eval_duration` histogram.
 
@@ -28,23 +30,15 @@ Measured via `rate_limiter_eval_duration` histogram.
 
 ### Bottleneck Analysis
 
-The primary bottleneck is Redis round-trip time, not CPU.
+The primary bottleneck is Redis round-trip time, not CPU. In-process algorithm throughput ranges from 12-26 million ops/sec (JMH).
 
-| Component | Throughput Limit |
-|---|---|
-| Redis (single instance) | ~100k ops/sec |
-| Lettuce connection pool | ~50k req/sec per connection |
-| Policy resolution | Not a bottleneck (CPU-bound, microseconds) |
-
-### Expected Throughput
-
-| Scenario | Expected |
-|---|---|
-| Single policy, single subject scope | ~30k req/sec |
-| Two policies per request | ~15k req/sec |
-| Composite key (2 scopes) | ~25k req/sec |
-
-*Estimates based on single Redis instance with local network. Actual numbers depend on hardware, network, and Redis configuration.*
+| Component | Measured Throughput | Bottleneck? |
+|---|---|---|
+| Fixed Window algorithm | 12.5M ops/sec | No |
+| Sliding Window algorithm | 25.9M ops/sec | No |
+| Token Bucket algorithm | 25.2M ops/sec | No |
+| Policy resolution (20 policies) | 167K ops/sec | No |
+| Redis (single instance) | ~100K ops/sec | **Yes** |
 
 ## Memory Model
 
@@ -57,8 +51,8 @@ active_keys ≈ active_subjects × matching_policies × 1 (current window only)
 ```
 
 Each key consumes approximately:
-- Key: ~80-150 bytes (e.g., `rl:payments-per-user:user:123|route:POST:/api/payments:28876925`)
-- Value: 8 bytes (integer counter)
+- Key: ~80-150 bytes
+- Value: 8 bytes (integer counter) or ~50 bytes (token bucket hash)
 - Redis overhead: ~80 bytes per key
 
 **Example:** 10,000 active users × 2 policies = 20,000 keys × ~250 bytes ≈ **5 MB**
@@ -68,59 +62,37 @@ Keys are automatically evicted by TTL (window_seconds + 5s buffer).
 ### JVM Memory
 
 - Policy list: negligible (loaded once at startup)
-- Metrics cache: O(policies × routes) `Counter` instances
-- In-memory backend: O(active_keys) `AtomicInteger` entries with scheduled cleanup
+- Metrics cache: O(policies) `Counter` instances (low-cardinality labels)
+- In-memory backend: O(active_keys) entries with scheduled cleanup
 
-## Load Testing Plan
+## Load Testing
 
 ### Tools
 
-- **k6** — scriptable, supports HTTP/1.1 and HTTP/2
-- **wrk** — low-overhead, high-concurrency benchmarking
-- **Gatling** — scenario-based, good for complex flows
+- **JMH** — microbenchmarks for algorithm, resolution, key building throughput
+- **k6** — HTTP load tests with rate limiter overhead measurement
 
-### Test Scenarios
+### Running Benchmarks
 
-#### Scenario 1: Single Subject High Concurrency
-```
-100 concurrent connections
-same IP
-POST /api/auth/login
-duration: 60s
-expected: first 5 succeed, rest get 429
-```
+```bash
+# JMH microbenchmarks (all algorithms, policy resolution, key building)
+./gradlew jmh
 
-#### Scenario 2: Many Subjects
-```
-100 concurrent connections
-unique IP per connection
-POST /api/auth/login
-duration: 60s
-expected: each IP gets 5 req/min, all independent
+# k6 HTTP load tests
+docker compose up -d
+SPRING_PROFILES_ACTIVE=demo ./gradlew bootRun
+k6 run --vus 100 --duration 60s scripts/k6-loadtest.js
+
+# Specific k6 scenario
+k6 run --env SCENARIO=single_ip scripts/k6-loadtest.js
 ```
 
-#### Scenario 3: Sustained Load at Limit Boundary
-```
-50 concurrent connections
-same user
-POST /api/payments
-rate: exactly 10 req/min
-duration: 5min
-expected: zero 429 responses, remaining hovers near 0
-```
+### Key Takeaways
 
-#### Scenario 4: Redis Latency Impact
-```
-inject Redis latency via tc or toxiproxy
-measure: overall request latency increase
-measure: fail-open activation time
-```
+1. **Algorithm computation is negligible** — millions of ops/sec in-process
+2. **Redis round-trip dominates** — ~1-3ms per request (local network)
+3. **Total overhead is ~3ms (p95)** — acceptable for most APIs
+4. **Passthrough is free** — excluded paths bypass the engine entirely
+5. **Scales with policy count** — linear but fast (26μs at 100 policies)
 
-### Metrics to Collect
-
-- `rate_limiter_eval_duration` — p50, p95, p99
-- `rate_limiter_requests_total` — throughput
-- `rate_limiter_rejected_total` — rejection rate
-- `rate_limiter_errors_total` — backend errors
-- Redis: `INFO commandstats`, memory usage, connected clients
-- JVM: heap usage, GC pauses
+See [benchmarks.md](benchmarks.md) for detailed results and methodology.

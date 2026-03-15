@@ -25,9 +25,10 @@ public class YamlPolicyStore implements PolicyStore {
 
     public YamlPolicyStore(RateLimiterProperties properties) {
         this.properties = properties;
-        this.activePolicies = new AtomicReference<>(
-                Collections.unmodifiableList(properties.getPolicies()));
-        log.info("Loaded {} rate limit policies from YAML configuration", properties.getPolicies().size());
+        List<Policy> policies = properties.getPolicies();
+        validatePolicies(policies);
+        this.activePolicies = new AtomicReference<>(Collections.unmodifiableList(policies));
+        log.info("Loaded {} rate limit policies from YAML configuration", policies.size());
     }
 
     @Override
@@ -37,8 +38,16 @@ public class YamlPolicyStore implements PolicyStore {
 
     @Override
     public void reload() {
+        List<Policy> newPolicies = properties.getPolicies();
+        validatePolicies(newPolicies);
         List<Policy> previous = activePolicies.getAndSet(
-                Collections.unmodifiableList(properties.getPolicies()));
-        log.info("Reloaded YAML policies: {} → {} policies", previous.size(), properties.getPolicies().size());
+                Collections.unmodifiableList(newPolicies));
+        log.info("Reloaded YAML policies: {} → {} policies", previous.size(), newPolicies.size());
+    }
+
+    private void validatePolicies(List<Policy> policies) {
+        for (Policy policy : policies) {
+            policy.validate();
+        }
     }
 }

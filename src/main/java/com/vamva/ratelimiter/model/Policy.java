@@ -94,6 +94,30 @@ public class Policy {
 
     /** Returns the error status code, defaulting to 429. */
     public int getEffectiveErrorStatusCode() {
-        return errorStatusCode > 0 ? errorStatusCode : 429;
+        return errorStatusCode >= 400 ? errorStatusCode : 429;
+    }
+
+    /**
+     * Validates algorithm-specific constraints that cannot be expressed
+     * with simple field annotations.
+     *
+     * @throws IllegalStateException if the policy configuration is invalid
+     */
+    public void validate() {
+        if (errorStatusCode != 0 && errorStatusCode < 400) {
+            throw new IllegalStateException(
+                    "Policy '" + id + "': errorStatusCode must be >= 400, got " + errorStatusCode);
+        }
+        if (algorithm == Algorithm.TOKEN_BUCKET && burstCapacity < 0) {
+            throw new IllegalStateException(
+                    "Policy '" + id + "': burstCapacity must be >= 0 for token bucket, got " + burstCapacity);
+        }
+        if (windowSeconds > 0 && limit > 0 && algorithm == Algorithm.TOKEN_BUCKET) {
+            double refillRate = (double) limit / windowSeconds;
+            if (refillRate < 0.001) {
+                throw new IllegalStateException(
+                        "Policy '" + id + "': token bucket refill rate too low (" + refillRate + " tokens/sec)");
+            }
+        }
     }
 }
