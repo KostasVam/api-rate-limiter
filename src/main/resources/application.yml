@@ -15,6 +15,7 @@ rate-limiter:
   policies:
     - id: login-per-ip
       enabled: true
+      mode: enforce
       priority: 1
       match:
         paths:
@@ -28,6 +29,7 @@ rate-limiter:
 
     - id: payments-per-user
       enabled: true
+      mode: enforce
       priority: 2
       match:
         paths:

@@ -13,6 +13,13 @@ import java.util.List;
  *
  * <p>Each policy specifies match conditions (paths, methods), subject scopes
  * for key generation, and rate limit parameters (requests per window).</p>
+ *
+ * <p>Policies support two modes:</p>
+ * <ul>
+ *   <li>{@code enforce} (default) — requests exceeding the limit are rejected with 429</li>
+ *   <li>{@code observe} — full evaluation occurs (counters incremented, metrics/logs recorded)
+ *       but requests are never rejected. Use this for safe rollout of new policies.</li>
+ * </ul>
  */
 @Data
 public class Policy {
@@ -23,6 +30,15 @@ public class Policy {
 
     /** Whether this policy is active. Disabled policies are skipped during evaluation. */
     private boolean enabled = true;
+
+    /**
+     * Policy enforcement mode.
+     * <ul>
+     *   <li>{@code enforce} — reject requests that exceed the limit (default)</li>
+     *   <li>{@code observe} — evaluate and log/meter, but never reject (shadow mode)</li>
+     * </ul>
+     */
+    private PolicyMode mode = PolicyMode.ENFORCE;
 
     /** Priority for evaluation ordering. Lower values are evaluated first. */
     @Min(0)

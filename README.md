@@ -36,6 +36,7 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Prometheus metrics via Micrometer (with route labels)
 - [x] YAML-based policy configuration with Bean Validation
 - [x] Path normalization (trailing slash stripping)
+- [x] Observe (shadow) mode for safe policy rollout
 
 ## Architecture
 
@@ -105,6 +106,7 @@ rate-limiter:
   policies:
     - id: login-per-ip
       enabled: true
+      mode: enforce             # enforce | observe
       priority: 1
       match:
         paths:
@@ -118,6 +120,7 @@ rate-limiter:
 
     - id: payments-per-user
       enabled: true
+      mode: enforce
       priority: 2
       match:
         paths:
@@ -132,9 +135,31 @@ rate-limiter:
       window-seconds: 60
 ```
 
-**Evaluation rule:** if ANY policy is exceeded → reject (429). If ALL pass → allow.
+**Evaluation rule:** if ANY **enforced** policy is exceeded → reject (429). If ALL pass → allow. Policies in `observe` mode are fully evaluated but never cause rejections.
 
-When multiple policies fail, the one with the shortest `retry-after` is used for the response.
+When multiple enforced policies fail, the one with the shortest `retry-after` is used for the response.
+
+### Observe (Shadow) Mode
+
+Policies can be deployed in `observe` mode for safe rollout. In this mode:
+
+- Counters are incremented normally (real usage data)
+- Metrics and structured logs are recorded
+- `rate_limiter_observed_would_reject_total` tracks what **would have been** rejected
+- Requests are **never** rejected
+
+This allows operators to validate policy impact on real traffic before switching to `enforce`.
+
+```yaml
+- id: new-strict-policy
+  mode: observe               # evaluate but don't reject
+  match:
+    paths: [/api/**]
+    methods: [POST]
+  subjects: [ip]
+  limit: 3
+  window-seconds: 60
+```
 
 ### Fixed Window Algorithm
 
@@ -207,6 +232,7 @@ Default: `open` (configured via `rate-limiter.fail-open`)
 | `rate_limiter_requests_total`    | Counter   | `policy_id`, `decision`, `route`    |
 | `rate_limiter_allowed_total`     | Counter   | `policy_id`, `route`                |
 | `rate_limiter_rejected_total`    | Counter   | `policy_id`, `route`                |
+| `rate_limiter_observed_would_reject_total` | Counter | `policy_id`, `route`       |
 | `rate_limiter_errors_total`      | Counter   | —                                   |
 | `rate_limiter_eval_duration`     | Timer     | —                                   |
 
@@ -381,6 +407,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [ADR-003](docs/adr/ADR-003-middleware-design.md) | Implement as Servlet Filter middleware |
 | [ADR-004](docs/adr/ADR-004-fail-open-default.md) | Default to fail-open on backend failure |
 | [ADR-005](docs/adr/ADR-005-composite-subject-keys.md) | Composite subject keys for rate limit scoping |
+| [ADR-006](docs/adr/ADR-006-observe-shadow-mode.md) | Observe (shadow) mode for safe policy rollout |
 
 ## Roadmap
 
@@ -391,11 +418,11 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 - Prometheus metrics
 - Structured logging
 - Per-route YAML policies
+- Observe (shadow) mode for safe rollout
 
 ### v2.0
 - Token Bucket / Sliding Window algorithms
 - Dynamic config reload without restart
-- Shadow mode (log-only, no enforcement)
 - Redis Cluster support
 
 ### v3.0

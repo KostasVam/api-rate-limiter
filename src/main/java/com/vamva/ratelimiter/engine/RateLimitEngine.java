@@ -2,7 +2,9 @@ package com.vamva.ratelimiter.engine;
 
 import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
+import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.Policy;
+import com.vamva.ratelimiter.model.PolicyMode;
 import com.vamva.ratelimiter.model.RateLimitResult;
 import com.vamva.ratelimiter.policy.PolicyResolver;
 import com.vamva.ratelimiter.subject.CompositeKeyBuilder;
@@ -24,12 +26,15 @@ import java.util.Optional;
  *   <li>Resolves matching policies via {@link PolicyResolver}</li>
  *   <li>Builds composite subject keys via {@link CompositeKeyBuilder}</li>
  *   <li>Increments counters via {@link RateLimitBackend}</li>
- *   <li>Aggregates results — if <strong>any</strong> policy is exceeded, the request is rejected</li>
+ *   <li>Aggregates results — if <strong>any enforced</strong> policy is exceeded, the request is rejected</li>
  * </ol>
  *
- * <p>When multiple policies are exceeded, the one with the shortest {@code retryAfter}
- * is returned. When all policies pass, the one with the lowest {@code remaining} count
- * is returned (tightest limit for headers).</p>
+ * <p>Policies in {@code observe} mode are fully evaluated (counters incremented, metrics/logs
+ * recorded) but their results do not contribute to the reject decision.</p>
+ *
+ * <p>When multiple enforced policies are exceeded, the one with the shortest {@code retryAfter}
+ * is returned. When all enforced policies pass, the one with the lowest {@code remaining} count
+ * is returned (most restrictive matched policy for response headers).</p>
  */
 @Slf4j
 @Component
@@ -39,15 +44,18 @@ public class RateLimitEngine {
     private final PolicyResolver policyResolver;
     private final CompositeKeyBuilder keyBuilder;
     private final RateLimitBackend backend;
+    private final RateLimitMetrics metrics;
 
     public RateLimitEngine(RateLimiterProperties properties,
                            PolicyResolver policyResolver,
                            CompositeKeyBuilder keyBuilder,
-                           RateLimitBackend backend) {
+                           RateLimitBackend backend,
+                           RateLimitMetrics metrics) {
         this.properties = properties;
         this.policyResolver = policyResolver;
         this.keyBuilder = keyBuilder;
         this.backend = backend;
+        this.metrics = metrics;
     }
 
     /**
@@ -67,7 +75,7 @@ public class RateLimitEngine {
         }
 
         String route = request.getMethod() + " " + request.getRequestURI();
-        List<RateLimitResult> results = new ArrayList<>();
+        List<RateLimitResult> enforcedResults = new ArrayList<>();
 
         for (Policy policy : policies) {
             Optional<String> subjectKey = keyBuilder.buildKey(policy, request);
@@ -82,23 +90,35 @@ public class RateLimitEngine {
 
             RateLimitResult result = backend.increment(redisKey, policy.getLimit(),
                     policy.getWindowSeconds(), policy.getId());
-            results.add(result);
 
-            log.info("policy_id={} subject={} route={} decision={} remaining={} retry_after={}",
+            boolean isObserve = policy.getMode() == PolicyMode.OBSERVE;
+            String decision = resolveDecisionLabel(result, isObserve);
+
+            log.info("policy_id={} mode={} subject={} route={} decision={} remaining={} retry_after={}",
                     policy.getId(),
+                    policy.getMode().name().toLowerCase(),
                     subjectKey.get(),
                     route,
-                    result.isAllowed() ? "ALLOW" : "REJECT",
+                    decision,
                     result.getRemaining(),
                     result.getRetryAfterSeconds());
+
+            if (isObserve) {
+                // Shadow mode: record what would have happened, but don't contribute to rejection
+                if (!result.isAllowed()) {
+                    metrics.recordObservedRejection(policy.getId(), route);
+                }
+            } else {
+                enforcedResults.add(result);
+            }
         }
 
-        if (results.isEmpty()) {
+        if (enforcedResults.isEmpty()) {
             return Optional.empty();
         }
 
-        // If any policy is exceeded, reject with shortest retry-after
-        Optional<RateLimitResult> rejected = results.stream()
+        // If any enforced policy is exceeded, reject with shortest retry-after
+        Optional<RateLimitResult> rejected = enforcedResults.stream()
                 .filter(r -> !r.isAllowed())
                 .min(Comparator.comparingLong(RateLimitResult::getRetryAfterSeconds));
 
@@ -106,8 +126,15 @@ public class RateLimitEngine {
             return rejected;
         }
 
-        // All allowed — return the one with lowest remaining (tightest limit)
-        return results.stream()
+        // All enforced policies allowed — return most restrictive (lowest remaining)
+        return enforcedResults.stream()
                 .min(Comparator.comparingInt(RateLimitResult::getRemaining));
+    }
+
+    private String resolveDecisionLabel(RateLimitResult result, boolean isObserve) {
+        if (isObserve) {
+            return result.isAllowed() ? "OBSERVE_ALLOW" : "OBSERVE_WOULD_REJECT";
+        }
+        return result.isAllowed() ? "ALLOW" : "REJECT";
     }
 }

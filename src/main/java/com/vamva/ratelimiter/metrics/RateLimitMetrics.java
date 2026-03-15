@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code rate_limiter_requests_total} — total evaluated requests (policy_id, decision, route)</li>
  *   <li>{@code rate_limiter_allowed_total} — allowed requests (policy_id, route)</li>
  *   <li>{@code rate_limiter_rejected_total} — rejected requests (policy_id, route)</li>
+ *   <li>{@code rate_limiter_observed_would_reject_total} — shadow mode rejections (policy_id, route)</li>
  *   <li>{@code rate_limiter_errors_total} — backend failures</li>
  *   <li>{@code rate_limiter_eval_duration} — evaluation time histogram</li>
  * </ul>
@@ -68,6 +69,16 @@ public class RateLimitMetrics {
      */
     public void recordEvaluationTime(long nanos) {
         evalTimer.record(Duration.ofNanos(nanos));
+    }
+
+    /**
+     * Records a shadow mode rejection — the policy would have rejected, but didn't.
+     *
+     * @param policyId the observed policy
+     * @param route    the request route
+     */
+    public void recordObservedRejection(String policyId, String route) {
+        getOrCreateCounter("rate_limiter_observed_would_reject_total", policyId, route, null).increment();
     }
 
     /** Increments the backend error counter. */
