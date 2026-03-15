@@ -29,8 +29,13 @@
 | **RateLimitEngine** | Orchestrates per-policy evaluation. Resolves policies, builds keys, calls backend, and aggregates results into a single decision. Does not own business logic for matching, extraction, or storage. |
 | **PolicyResolver** | Resolves which policies apply to a given request by matching path (Ant patterns) and HTTP method. Returns policies sorted by priority for deterministic processing order. |
 | **CompositeKeyBuilder** | Builds the canonical subject key from request context by invoking registered `SubjectExtractor` implementations and joining their results. |
-| **Backend** | Atomically updates and reads usage state. Owns counter increment, TTL management, and window isolation. Two implementations: `RedisBackend` (distributed) and `InMemoryBackend` (local/dev). |
+| **Backend** | Atomically updates and reads usage state. Owns counter increment, TTL management, and window isolation. Two implementations: `RedisBackend` (distributed, wrapped in Resilience4j circuit breaker) and `InMemoryBackend` (local/dev). |
 | **RateLimitMetrics** | Records Prometheus counters (requests, allowed, rejected, errors) and evaluation duration timer. |
+| **PolicyReloadService** | Manages runtime policy updates. Holds a thread-safe `AtomicReference` of active policies. Supports hot-reload without restart. |
+| **PolicyReloadEndpoint** | Actuator endpoint (`/actuator/ratelimiter`). GET to view active policies, POST to trigger reload from configuration. |
+| **CircuitBreaker** | Resilience4j circuit breaker wrapping all Redis calls in `RedisBackend`. Prevents cascading failures when Redis is unavailable. Transitions: CLOSED → OPEN (50% failure rate) → HALF_OPEN (probe after 10s). |
+| **RateLimitInterceptor** | Spring MVC interceptor for `@RateLimit` annotation-based rate limiting. Evaluates annotation policies alongside YAML policies. |
+| **RateLimitHeaderAdvice** | `ResponseBodyAdvice` that ensures `X-RateLimit-*` headers are present on all responses, including error responses from controllers. |
 
 ## Sequence Diagram
 

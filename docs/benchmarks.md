@@ -117,8 +117,8 @@ SPRING_PROFILES_ACTIVE=demo ./gradlew bootRun
 # https://k6.io/docs/get-started/installation/
 
 # Run load test
-k6 run --vus 100 --duration 60s scripts/loadtest.js
+k6 run --vus 100 --duration 60s scripts/k6-loadtest.js
 
-# Or with wrk
-wrk -t12 -c100 -d60s -s scripts/post.lua http://localhost:8080/api/auth/login
+# Run specific scenario
+k6 run --env SCENARIO=single_ip scripts/k6-loadtest.js
 ```

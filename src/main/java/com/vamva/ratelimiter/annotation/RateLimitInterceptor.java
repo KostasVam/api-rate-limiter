@@ -1,5 +1,6 @@
 package com.vamva.ratelimiter.annotation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.filter.RateLimitFilter;
@@ -11,12 +12,11 @@ import com.vamva.ratelimiter.subject.CompositeKeyBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,14 +39,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final RateLimiterProperties properties;
     private final CompositeKeyBuilder keyBuilder;
     private final RateLimitBackend backend;
+    private final ObjectMapper objectMapper;
     private final Map<String, Policy> policyCache = new ConcurrentHashMap<>();
 
     public RateLimitInterceptor(RateLimiterProperties properties,
                                 CompositeKeyBuilder keyBuilder,
-                                RateLimitBackend backend) {
+                                RateLimitBackend backend,
+                                ObjectMapper objectMapper) {
         this.properties = properties;
         this.keyBuilder = keyBuilder;
         this.backend = backend;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -86,9 +89,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             response.setHeader("Retry-After", String.valueOf(result.getRetryAfterSeconds()));
             response.setHeader("X-RateLimit-Policy", annotation.id());
             response.setContentType("application/json");
-            response.getWriter().write(String.format(
-                    "{\"error\":\"rate_limit_exceeded\",\"message\":\"%s\",\"policy\":\"%s\",\"retry_after_seconds\":%d}",
-                    result.getErrorMessage(), annotation.id(), result.getRetryAfterSeconds()));
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("error", "rate_limit_exceeded");
+            body.put("message", result.getErrorMessage());
+            body.put("limit", result.getLimit());
+            body.put("remaining", 0);
+            body.put("retry_after_seconds", result.getRetryAfterSeconds());
+            body.put("policy", annotation.id());
+            response.getWriter().write(objectMapper.writeValueAsString(body));
             return false;
         }
 
@@ -141,6 +150,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             policy.setBurstCapacity(annotation.burstCapacity());
             if (!annotation.errorMessage().isEmpty()) {
                 policy.setErrorMessage(annotation.errorMessage());
+            }
+            if (annotation.errorStatusCode() > 0) {
+                policy.setErrorStatusCode(annotation.errorStatusCode());
             }
             return policy;
         });

@@ -45,4 +45,7 @@ public @interface RateLimit {
 
     /** Custom error message for rejection response. */
     String errorMessage() default "";
+
+    /** Custom HTTP status code for rejection. 0 means default (429). */
+    int errorStatusCode() default 0;
 }

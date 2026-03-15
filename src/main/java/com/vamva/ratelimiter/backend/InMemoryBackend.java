@@ -79,35 +79,30 @@ public class InMemoryBackend implements RateLimitBackend {
     }
 
     @Override
-    public synchronized RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
+    public RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
         long now = Instant.now().getEpochSecond();
 
-        BucketEntry bucket = buckets.get(key);
-        if (bucket == null) {
-            // New bucket: start at full capacity, consume one token
-            bucket = new BucketEntry(capacity - 1.0, now);
-            buckets.put(key, bucket);
-            long resetEpoch = now + (long) Math.ceil(1.0 / refillRate);
-            return RateLimitResult.allowed(capacity, capacity - 1, resetEpoch, policyId);
+        BucketEntry bucket = buckets.computeIfAbsent(key,
+                k -> new BucketEntry(capacity, now));
+
+        // Synchronize per-bucket for atomic refill + consume
+        synchronized (bucket) {
+            long elapsed = now - bucket.lastRefill;
+            bucket.tokens = Math.min(capacity, bucket.tokens + elapsed * refillRate);
+            bucket.lastRefill = now;
+
+            if (bucket.tokens >= 1) {
+                bucket.tokens -= 1;
+                int remaining = (int) Math.floor(bucket.tokens);
+                long resetEpoch = now + (long) Math.ceil(1.0 / refillRate);
+                return RateLimitResult.allowed(capacity, remaining, resetEpoch, policyId);
+            }
+
+            double deficit = 1 - bucket.tokens;
+            long retryAfter = (long) Math.ceil(deficit / refillRate);
+            long resetEpoch = now + retryAfter;
+            return RateLimitResult.rejected(capacity, resetEpoch, policyId, retryAfter);
         }
-
-        // Refill tokens based on elapsed time
-        long elapsed = now - bucket.lastRefill;
-        bucket.tokens = Math.min(capacity, bucket.tokens + elapsed * refillRate);
-        bucket.lastRefill = now;
-
-        // Try to consume one token
-        if (bucket.tokens >= 1) {
-            bucket.tokens -= 1;
-            int remaining = (int) Math.floor(bucket.tokens);
-            long resetEpoch = now + (long) Math.ceil(1.0 / refillRate);
-            return RateLimitResult.allowed(capacity, remaining, resetEpoch, policyId);
-        }
-
-        double deficit = 1 - bucket.tokens;
-        long retryAfter = (long) Math.ceil(deficit / refillRate);
-        long resetEpoch = now + retryAfter;
-        return RateLimitResult.rejected(capacity, resetEpoch, policyId, retryAfter);
     }
 
     /** Removes expired window entries to prevent memory leaks. */

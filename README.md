@@ -337,13 +337,21 @@ api-rate-limiter/
 ├── src/
 │   ├── main/java/com/vamva/ratelimiter/
 │   │   ├── RateLimiterApplication.java
+│   │   ├── annotation/
+│   │   │   ├── RateLimit.java
+│   │   │   └── RateLimitInterceptor.java
 │   │   ├── config/
 │   │   │   ├── RateLimiterProperties.java
-│   │   │   └── RateLimiterAutoConfiguration.java
+│   │   │   ├── RateLimiterAutoConfiguration.java
+│   │   │   ├── PolicyReloadService.java
+│   │   │   ├── PolicyReloadEndpoint.java
+│   │   │   └── WebMvcConfig.java
 │   │   ├── model/
 │   │   │   ├── Policy.java
 │   │   │   ├── MatchCondition.java
-│   │   │   └── RateLimitResult.java
+│   │   │   ├── RateLimitResult.java
+│   │   │   ├── PolicyMode.java
+│   │   │   └── Algorithm.java
 │   │   ├── subject/
 │   │   │   ├── SubjectExtractor.java
 │   │   │   ├── IpExtractor.java
@@ -361,7 +369,8 @@ api-rate-limiter/
 │   │   ├── engine/
 │   │   │   └── RateLimitEngine.java
 │   │   ├── filter/
-│   │   │   └── RateLimitFilter.java
+│   │   │   ├── RateLimitFilter.java
+│   │   │   └── RateLimitHeaderAdvice.java
 │   │   ├── metrics/
 │   │   │   └── RateLimitMetrics.java
 │   │   └── demo/
@@ -369,7 +378,9 @@ api-rate-limiter/
 │   ├── main/resources/
 │   │   ├── application.yml
 │   │   └── scripts/
-│   │       └── fixed_window.lua
+│   │       ├── fixed_window.lua
+│   │       ├── sliding_window.lua
+│   │       └── token_bucket.lua
 │   └── test/java/com/vamva/ratelimiter/
 │       ├── subject/
 │       │   ├── IpExtractorTest.java
@@ -377,14 +388,21 @@ api-rate-limiter/
 │       ├── policy/
 │       │   └── PolicyResolverTest.java
 │       ├── backend/
-│       │   └── InMemoryBackendTest.java
+│       │   ├── InMemoryBackendTest.java
+│       │   ├── SlidingWindowTest.java
+│       │   └── TokenBucketTest.java
 │       ├── engine/
 │       │   └── RateLimitEngineTest.java
 │       ├── filter/
 │       │   └── RateLimitFilterTest.java
 │       └── integration/
 │           ├── TestController.java
-│           └── RateLimiterIntegrationTest.java
+│           ├── RateLimiterIntegrationTest.java
+│           ├── SlidingWindowIntegrationTest.java
+│           ├── TokenBucketIntegrationTest.java
+│           ├── AnnotationIntegrationTest.java
+│           ├── LuaScriptContractTest.java
+│           └── ChaosTest.java
 ├── docs/
 │   ├── architecture.md
 │   ├── security.md
@@ -515,6 +533,10 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 - Comprehensive test suite: unit, integration, contract, chaos (64 tests)
 
 ### v2.0
+- Spring Boot Starter packaging (publishable library)
+- Leaky Bucket algorithm
+- Response body customization templates
+- Webhook notifications on sustained rejections
 
 ### v3.0
 - Centralized rate limit service (gRPC)

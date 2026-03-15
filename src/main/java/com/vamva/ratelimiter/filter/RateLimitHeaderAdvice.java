@@ -42,6 +42,12 @@ public class RateLimitHeaderAdvice implements ResponseBodyAdvice<Object> {
                         java.util.List.of(String.valueOf(result.getRemaining())));
                 response.getHeaders().putIfAbsent("X-RateLimit-Reset",
                         java.util.List.of(String.valueOf(result.getResetEpochSeconds())));
+                if (!result.isAllowed()) {
+                    response.getHeaders().putIfAbsent("Retry-After",
+                            java.util.List.of(String.valueOf(result.getRetryAfterSeconds())));
+                    response.getHeaders().putIfAbsent("X-RateLimit-Policy",
+                            java.util.List.of(result.getPolicyId()));
+                }
             }
         }
         return body;
