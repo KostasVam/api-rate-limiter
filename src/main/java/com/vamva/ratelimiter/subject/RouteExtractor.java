@@ -1,16 +1,15 @@
 package com.vamva.ratelimiter.subject;
 
-import com.vamva.ratelimiter.policy.RouteNormalizer;
+import com.vamva.ratelimiter.policy.CanonicalRoute;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Optional;
 
 /**
- * Extracts the route identifier from the request using {@link RouteNormalizer}.
+ * Extracts the route identifier from the request using {@link CanonicalRoute}.
  *
- * <p>Produces a canonical route string (e.g., {@code POST:/api/payments}) that is
- * consistent with the path normalization used in policy matching. This ensures
- * that two URLs considered "the same" for matching also produce the same subject key.</p>
+ * <p>Produces a canonical subject key (e.g., {@code POST:/api/payments}) that is
+ * guaranteed to be consistent with the path normalization used in policy matching.</p>
  */
 public class RouteExtractor implements SubjectExtractor {
 
@@ -21,6 +20,6 @@ public class RouteExtractor implements SubjectExtractor {
 
     @Override
     public Optional<String> extract(HttpServletRequest request) {
-        return Optional.of(RouteNormalizer.canonicalRoute(request));
+        return Optional.of(CanonicalRoute.from(request).toSubjectKey());
     }
 }

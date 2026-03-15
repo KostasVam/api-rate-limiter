@@ -10,7 +10,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import com.vamva.ratelimiter.policy.RouteNormalizer;
+import com.vamva.ratelimiter.policy.CanonicalRoute;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -55,13 +55,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        if (isExcluded(RouteNormalizer.normalizePath(request.getRequestURI()))) {
+        CanonicalRoute canonical = CanonicalRoute.from(request);
+
+        if (isExcluded(canonical.normalizedPath())) {
             filterChain.doFilter(request, response);
             return;
         }
 
         long startNanos = System.nanoTime();
-        String route = RouteNormalizer.logRoute(request);
 
         Optional<RateLimitResult> resultOpt = engine.evaluate(request);
 

@@ -436,12 +436,20 @@ api-rate-limiter/
 
 ## Acceptance Criteria
 
-| ID   | Scenario                                                              | Expected                |
-|------|-----------------------------------------------------------------------|-------------------------|
-| AC1  | Policy 5 req/min/IP — client sends 4 requests                        | All succeed             |
-| AC2  | Policy 5 req/min/IP — client sends 6th request                       | HTTP 429                |
-| AC3  | User A hits limit — User B sends request                             | User B succeeds         |
-| AC4  | Two app instances share Redis — combined count enforced               | Limit shared correctly  |
+| ID   | Scenario                                                              | Expected                | Tested By |
+|------|-----------------------------------------------------------------------|-------------------------|-----------|
+| AC1  | Policy 5 req/min/IP — client sends 4 requests                        | All succeed             | `RateLimiterIntegrationTest` |
+| AC2  | Policy 5 req/min/IP — client sends 6th request                       | HTTP 429                | `RateLimiterIntegrationTest` |
+| AC3  | User A hits limit — User B sends request                             | User B succeeds         | `RateLimiterIntegrationTest` |
+| AC4  | Two app instances share Redis — combined count enforced               | Limit shared correctly  | By design (shared Redis) |
+| AC5  | Sliding window policy — requests within limit                        | All succeed with headers | `SlidingWindowIntegrationTest` |
+| AC6  | Token bucket burst-capacity=3 — client sends 4th request             | HTTP 429                | `TokenBucketIntegrationTest` |
+| AC7  | Policy in observe mode — limit exceeded                              | Request allowed, metric recorded | `RateLimitEngineTest` |
+| AC8  | Redis goes down — fail-open enabled                                  | Requests still succeed  | `ChaosTest` |
+| AC9  | Redis recovers — rate limiting resumes                               | Normal enforcement      | `ChaosTest` |
+| AC10 | `@RateLimit` annotation — limit exceeded                             | HTTP 429                | `AnnotationIntegrationTest` |
+| AC11 | Excluded path (`/health`) — any request                              | Bypasses rate limiter   | `RateLimitFilterTest` |
+| AC12 | Auto-configuration without component scanning                        | All beans registered    | `AutoConfigurationTest` |
 
 ## Usage as Library
 

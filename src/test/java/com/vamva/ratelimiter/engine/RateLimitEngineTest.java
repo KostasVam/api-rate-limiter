@@ -44,7 +44,7 @@ class RateLimitEngineTest {
         backend = mock(RateLimitBackend.class);
         metrics = mock(RateLimitMetrics.class);
 
-        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend, java.time.Clock.systemUTC());
         engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
     }
 
@@ -105,7 +105,7 @@ class RateLimitEngineTest {
         // Recreate engine with updated policies
         PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(new com.vamva.ratelimiter.policy.YamlPolicyStore(properties), properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
-        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend, java.time.Clock.systemUTC());
         engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
 
         when(backend.increment(anyString(), eq(10), eq(60), eq("observe-policy")))
@@ -131,7 +131,7 @@ class RateLimitEngineTest {
 
         PolicyResolver resolver = new PolicyResolver(new PolicyReloadService(new com.vamva.ratelimiter.policy.YamlPolicyStore(properties), properties));
         CompositeKeyBuilder keyBuilder = new CompositeKeyBuilder(List.of(new IpExtractor()));
-        PolicyEvaluator evaluator = new PolicyEvaluator(backend);
+        PolicyEvaluator evaluator = new PolicyEvaluator(backend, java.time.Clock.systemUTC());
         engine = new RateLimitEngine(properties, resolver, keyBuilder, evaluator, metrics);
 
         when(backend.increment(anyString(), eq(10), eq(60), eq("observe-policy")))

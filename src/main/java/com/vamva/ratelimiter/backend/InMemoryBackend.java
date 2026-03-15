@@ -4,10 +4,9 @@ import com.vamva.ratelimiter.model.RateLimitResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * In-memory rate limit backend for single-instance and development use.
@@ -29,10 +28,19 @@ public class InMemoryBackend implements RateLimitBackend {
 
     private final ConcurrentHashMap<String, WindowEntry> windows = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, BucketEntry> buckets = new ConcurrentHashMap<>();
+    private final Clock clock;
+
+    public InMemoryBackend() {
+        this(Clock.systemUTC());
+    }
+
+    public InMemoryBackend(Clock clock) {
+        this.clock = clock;
+    }
 
     @Override
     public RateLimitResult increment(String key, int limit, int windowSeconds, String policyId) {
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         long windowStart = (now / windowSeconds) * windowSeconds;
         long resetEpoch = windowStart + windowSeconds;
 
@@ -56,7 +64,7 @@ public class InMemoryBackend implements RateLimitBackend {
     public RateLimitResult slidingWindowIncrement(String currentKey, String previousKey,
                                                    int limit, int windowSeconds,
                                                    double overlapWeight, String policyId) {
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         long windowStart = (now / windowSeconds) * windowSeconds;
         long resetEpoch = windowStart + windowSeconds;
 
@@ -85,7 +93,7 @@ public class InMemoryBackend implements RateLimitBackend {
 
     @Override
     public RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
 
         BucketEntry bucket = buckets.computeIfAbsent(key,
                 k -> new BucketEntry(capacity, now));
@@ -116,7 +124,7 @@ public class InMemoryBackend implements RateLimitBackend {
      */
     @Scheduled(fixedRate = 60_000)
     public void cleanup() {
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         int removedWindows = 0;
         int removedBuckets = 0;
 

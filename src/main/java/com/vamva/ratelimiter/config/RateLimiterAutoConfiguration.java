@@ -16,11 +16,14 @@ import com.vamva.ratelimiter.policy.YamlPolicyStore;
 import com.vamva.ratelimiter.subject.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+
+import java.time.Clock;
 import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -48,6 +51,14 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "rate-limiter", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimiterAutoConfiguration {
 
+    // ── Time ─────────────────────────────────────────────────────────────
+
+    @Bean
+    @ConditionalOnMissingBean(Clock.class)
+    public Clock rateLimiterClock() {
+        return Clock.systemUTC();
+    }
+
     // ── Backend ──────────────────────────────────────────────────────────
 
     @Bean
@@ -62,8 +73,8 @@ public class RateLimiterAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "rate-limiter.backend", havingValue = "in-memory")
     @ConditionalOnMissingBean(RateLimitBackend.class)
-    public RateLimitBackend inMemoryBackend() {
-        return new InMemoryBackend();
+    public RateLimitBackend inMemoryBackend(Clock clock) {
+        return new InMemoryBackend(clock);
     }
 
     // ── Subject Extractors ───────────────────────────────────────────────
@@ -142,8 +153,8 @@ public class RateLimiterAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(PolicyEvaluator.class)
-    public PolicyEvaluator policyEvaluator(RateLimitBackend backend) {
-        return new PolicyEvaluator(backend);
+    public PolicyEvaluator policyEvaluator(RateLimitBackend backend, Clock clock) {
+        return new PolicyEvaluator(backend, clock);
     }
 
     @Bean

@@ -10,8 +10,8 @@ import java.util.List;
 /**
  * Resolves which {@link Policy} instances apply to an incoming HTTP request.
  *
- * <p>Uses {@link RouteNormalizer} for canonical path normalization, ensuring
- * consistency with subject key generation and logging.</p>
+ * <p>Uses {@link CanonicalRoute} for path normalization, ensuring consistency
+ * with subject key generation and logging throughout the pipeline.</p>
  */
 public class PolicyResolver {
 
@@ -28,12 +28,11 @@ public class PolicyResolver {
      * @return matching policies sorted by priority (ascending), or an empty list
      */
     public List<Policy> resolve(HttpServletRequest request) {
-        String path = RouteNormalizer.normalizePath(request.getRequestURI());
-        String method = request.getMethod();
+        CanonicalRoute route = CanonicalRoute.from(request);
 
         return reloadService.getActivePolicies().stream()
                 .filter(Policy::isEnabled)
-                .filter(p -> p.getMatch().matches(path, method))
+                .filter(p -> p.getMatch().matches(route.normalizedPath(), route.method()))
                 .sorted(Comparator.comparingInt(Policy::getPriority))
                 .toList();
     }

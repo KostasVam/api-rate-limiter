@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.engine.PolicyEvaluator;
 import com.vamva.ratelimiter.filter.RateLimitFilter;
-import com.vamva.ratelimiter.policy.RouteNormalizer;
+import com.vamva.ratelimiter.policy.CanonicalRoute;
 import com.vamva.ratelimiter.model.Policy;
 import com.vamva.ratelimiter.model.PolicyMode;
 import com.vamva.ratelimiter.model.RateLimitResult;
@@ -84,7 +84,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         if (!result.isAllowed()) {
-            String route = RouteNormalizer.logRoute(request);
+            String route = CanonicalRoute.from(request).toLogString();
             log.info("policy_id={} mode=annotation subject={} route={} decision=REJECT remaining=0 retry_after={}",
                     annotation.id(), subjectKey.get(), route, result.getRetryAfterSeconds());
 

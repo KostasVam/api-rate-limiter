@@ -85,7 +85,7 @@ publishing {
                 developers {
                     developer {
                         id.set("KostasVam")
-                        name.set("Kostas Vamvakeridis")
+                        name.set("Kostas Vamvakousis")
                     }
                 }
 
