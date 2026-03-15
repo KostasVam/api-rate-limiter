@@ -1,0 +1,38 @@
+rate-limiter:
+  enabled: true
+  fail-open: true
+  backend: redis
+  exclude-paths:
+    - /actuator/**
+
+  policies:
+    - id: sliding-per-ip
+      enabled: true
+      mode: enforce
+      priority: 1
+      algorithm: sliding_window
+      match:
+        paths:
+          - /api/sliding
+        methods:
+          - POST
+      subjects:
+        - ip
+      limit: 5
+      window-seconds: 60
+
+    - id: bucket-per-ip
+      enabled: true
+      mode: enforce
+      priority: 2
+      algorithm: token_bucket
+      match:
+        paths:
+          - /api/bucket
+        methods:
+          - POST
+      subjects:
+        - ip
+      limit: 5
+      window-seconds: 60
+      burst-capacity: 3

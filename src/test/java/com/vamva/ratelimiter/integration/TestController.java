@@ -1,5 +1,6 @@
 package com.vamva.ratelimiter.integration;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,5 +17,20 @@ public class TestController {
     @PostMapping("/api/payments")
     public Map<String, String> payment() {
         return Map.of("status", "ok");
+    }
+
+    @PostMapping("/api/sliding")
+    public Map<String, String> sliding() {
+        return Map.of("status", "ok");
+    }
+
+    @PostMapping("/api/bucket")
+    public Map<String, String> bucket() {
+        return Map.of("status", "ok");
+    }
+
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "up");
     }
 }
