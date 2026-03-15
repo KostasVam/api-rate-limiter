@@ -40,6 +40,9 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] YAML-based policy configuration with Bean Validation
 - [x] Path normalization (trailing slash stripping)
 - [x] Observe (shadow) mode for safe policy rollout
+- [x] Token Bucket algorithm (burst-friendly)
+- [x] Configurable bypass paths (health checks, actuator)
+- [x] Grafana dashboard template
 
 ## Architecture
 
@@ -210,6 +213,32 @@ Select per policy:
   algorithm: sliding_window    # or: fixed_window (default)
   limit: 10
   window-seconds: 60
+```
+
+### Token Bucket Algorithm
+
+Tokens refill at a steady rate. Each request consumes one token. Allows controlled bursts up to bucket capacity.
+
+```
+refill_rate = limit / window_seconds
+tokens = min(capacity, tokens + elapsed * refill_rate)
+```
+
+**Example:** limit=100/min, burst-capacity=20
+```
+refill rate = 100/60 = 1.67 tokens/sec
+bucket can hold up to 20 tokens
+→ allows bursts of 20 instant requests
+→ then 1.67 req/sec sustained
+```
+
+Select per policy:
+```yaml
+- id: api-per-key
+  algorithm: token_bucket
+  limit: 100
+  window-seconds: 60
+  burst-capacity: 20       # optional, defaults to limit
 ```
 
 ### HTTP Behavior
@@ -427,6 +456,7 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [Security](docs/security.md) | Threat model, attack vectors, mitigations |
 | [Performance](docs/performance.md) | Latency model, throughput analysis, load testing plan |
 | [Benchmarks](docs/benchmarks.md) | Load test results and Redis resource usage |
+| [Grafana](docs/grafana.md) | Dashboard template, panel descriptions, alerting recommendations |
 
 ### Architecture Decision Records
 
@@ -439,22 +469,22 @@ This project fills the gap between proxy-level rate limiting (infrastructure-hea
 | [ADR-005](docs/adr/ADR-005-composite-subject-keys.md) | Composite subject keys for rate limit scoping |
 | [ADR-006](docs/adr/ADR-006-observe-shadow-mode.md) | Observe (shadow) mode for safe policy rollout |
 | [ADR-007](docs/adr/ADR-007-sliding-window-counter.md) | Sliding Window Counter algorithm |
+| [ADR-008](docs/adr/ADR-008-token-bucket-algorithm.md) | Token Bucket algorithm |
 
 ## Roadmap
 
 ### v1.0 (Current)
-- Fixed Window Counter algorithm
-- Sliding Window Counter algorithm
+- Three algorithms: Fixed Window, Sliding Window Counter, Token Bucket
 - Redis + in-memory backends
 - HTTP rate limit headers
-- Prometheus metrics + CI pipeline
+- Prometheus metrics + CI pipeline + Grafana dashboard
 - Structured logging
 - Per-route YAML policies with per-policy algorithm selection
 - Observe (shadow) mode for safe rollout
+- Configurable bypass paths (health checks, actuator)
 - k6 load test scripts
 
 ### v2.0
-- Token Bucket algorithm
 - Dynamic config reload without restart
 - Redis Cluster support
 

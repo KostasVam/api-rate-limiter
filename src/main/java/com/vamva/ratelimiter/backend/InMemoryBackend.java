@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * In-memory rate limit backend for single-instance and development use.
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class InMemoryBackend implements RateLimitBackend {
 
     private final ConcurrentHashMap<String, WindowEntry> windows = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BucketEntry> buckets = new ConcurrentHashMap<>();
 
     @Override
     public RateLimitResult increment(String key, int limit, int windowSeconds, String policyId) {
@@ -76,6 +78,38 @@ public class InMemoryBackend implements RateLimitBackend {
         return RateLimitResult.allowed(limit, remaining, resetEpoch, policyId);
     }
 
+    @Override
+    public synchronized RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
+        long now = Instant.now().getEpochSecond();
+
+        BucketEntry bucket = buckets.get(key);
+        if (bucket == null) {
+            // New bucket: start at full capacity, consume one token
+            bucket = new BucketEntry(capacity - 1.0, now);
+            buckets.put(key, bucket);
+            long resetEpoch = now + (long) Math.ceil(1.0 / refillRate);
+            return RateLimitResult.allowed(capacity, capacity - 1, resetEpoch, policyId);
+        }
+
+        // Refill tokens based on elapsed time
+        long elapsed = now - bucket.lastRefill;
+        bucket.tokens = Math.min(capacity, bucket.tokens + elapsed * refillRate);
+        bucket.lastRefill = now;
+
+        // Try to consume one token
+        if (bucket.tokens >= 1) {
+            bucket.tokens -= 1;
+            int remaining = (int) Math.floor(bucket.tokens);
+            long resetEpoch = now + (long) Math.ceil(1.0 / refillRate);
+            return RateLimitResult.allowed(capacity, remaining, resetEpoch, policyId);
+        }
+
+        double deficit = 1 - bucket.tokens;
+        long retryAfter = (long) Math.ceil(deficit / refillRate);
+        long resetEpoch = now + retryAfter;
+        return RateLimitResult.rejected(capacity, resetEpoch, policyId, retryAfter);
+    }
+
     /** Removes expired window entries to prevent memory leaks. */
     @Scheduled(fixedRate = 60_000)
     public void cleanup() {
@@ -94,4 +128,14 @@ public class InMemoryBackend implements RateLimitBackend {
     }
 
     record WindowEntry(AtomicInteger counter, long expiresAt) {}
+
+    static class BucketEntry {
+        double tokens;
+        long lastRefill;
+
+        BucketEntry(double tokens, long lastRefill) {
+            this.tokens = tokens;
+            this.lastRefill = lastRefill;
+        }
+    }
 }

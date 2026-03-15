@@ -62,4 +62,19 @@ public class Policy {
 
     /** Rate limiting algorithm. Defaults to fixed window. */
     private Algorithm algorithm = Algorithm.FIXED_WINDOW;
+
+    /**
+     * Maximum burst capacity for token bucket algorithm.
+     * Defaults to the same value as {@code limit} if not specified.
+     * Only used when {@code algorithm = TOKEN_BUCKET}.
+     */
+    @Min(0)
+    private int burstCapacity;
+
+    /**
+     * Returns the effective burst capacity — defaults to {@code limit} if not explicitly set.
+     */
+    public int getEffectiveBurstCapacity() {
+        return burstCapacity > 0 ? burstCapacity : limit;
+    }
 }

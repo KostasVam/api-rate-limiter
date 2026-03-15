@@ -39,4 +39,18 @@ public interface RateLimitBackend {
     RateLimitResult slidingWindowIncrement(String currentKey, String previousKey,
                                            int limit, int windowSeconds,
                                            double overlapWeight, String policyId);
+
+    /**
+     * Evaluates a token bucket: refills tokens at a steady rate, consumes one per request.
+     *
+     * <p>Allows controlled bursts up to {@code capacity} while enforcing a long-term
+     * average rate of {@code refillRate} tokens per second.</p>
+     *
+     * @param key          the bucket key
+     * @param capacity     maximum tokens the bucket can hold (burst capacity)
+     * @param refillRate   tokens added per second
+     * @param policyId     the policy identifier
+     * @return the rate limit evaluation result
+     */
+    RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId);
 }

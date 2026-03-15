@@ -15,5 +15,12 @@ public enum Algorithm {
      * Sliding Window Counter: weighted average of current and previous window counters.
      * Smooths out boundary spikes with minimal additional cost (2 Redis keys instead of 1).
      */
-    SLIDING_WINDOW
+    SLIDING_WINDOW,
+
+    /**
+     * Token Bucket: tokens refill at a steady rate up to a maximum capacity.
+     * Each request consumes one token. Allows controlled bursts up to bucket capacity
+     * while enforcing a long-term average rate.
+     */
+    TOKEN_BUCKET
 }

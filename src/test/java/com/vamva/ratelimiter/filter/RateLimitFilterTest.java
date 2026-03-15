@@ -1,6 +1,7 @@
 package com.vamva.ratelimiter.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.engine.RateLimitEngine;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.RateLimitResult;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,7 +30,11 @@ class RateLimitFilterTest {
         engine = mock(RateLimitEngine.class);
         metrics = mock(RateLimitMetrics.class);
         filterChain = mock(FilterChain.class);
-        filter = new RateLimitFilter(engine, metrics, new ObjectMapper());
+
+        RateLimiterProperties properties = new RateLimiterProperties();
+        properties.setExcludePaths(List.of("/actuator/**", "/health"));
+
+        filter = new RateLimitFilter(engine, metrics, new ObjectMapper(), properties);
     }
 
     @Test
@@ -90,5 +96,27 @@ class RateLimitFilterTest {
 
         verify(metrics).recordRequest(eq("test"), eq("GET /api/test"), eq(true));
         verify(metrics).recordEvaluationTime(anyLong());
+    }
+
+    @Test
+    void bypassesExcludedPaths() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/prometheus");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(engine, never()).evaluate(any());
+    }
+
+    @Test
+    void bypassesExactExcludedPath() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/health");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(engine, never()).evaluate(any());
     }
 }

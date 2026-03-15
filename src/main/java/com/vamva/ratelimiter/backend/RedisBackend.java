@@ -16,10 +16,11 @@ import java.util.List;
 /**
  * Redis-backed rate limit counter using Lua scripts for atomic operations.
  *
- * <p>Supports two algorithms:</p>
+ * <p>Supports three algorithms:</p>
  * <ul>
  *   <li><strong>Fixed Window</strong> — single INCR + EXPIRE per request</li>
  *   <li><strong>Sliding Window Counter</strong> — weighted average of current and previous window</li>
+ *   <li><strong>Token Bucket</strong> — refill tokens at steady rate, consume on request</li>
  * </ul>
  *
  * <p>When Redis is unavailable, behavior depends on the {@code failOpen} flag.</p>
@@ -32,6 +33,7 @@ public class RedisBackend implements RateLimitBackend {
     private final StringRedisTemplate redisTemplate;
     private final DefaultRedisScript<List> fixedWindowScript;
     private final DefaultRedisScript<List> slidingWindowScript;
+    private final DefaultRedisScript<List> tokenBucketScript;
     private final boolean failOpen;
     private final RateLimitMetrics metrics;
 
@@ -47,6 +49,10 @@ public class RedisBackend implements RateLimitBackend {
         this.slidingWindowScript = new DefaultRedisScript<>();
         this.slidingWindowScript.setLocation(new ClassPathResource("scripts/sliding_window.lua"));
         this.slidingWindowScript.setResultType(List.class);
+
+        this.tokenBucketScript = new DefaultRedisScript<>();
+        this.tokenBucketScript.setLocation(new ClassPathResource("scripts/token_bucket.lua"));
+        this.tokenBucketScript.setResultType(List.class);
     }
 
     @Override
@@ -121,6 +127,52 @@ public class RedisBackend implements RateLimitBackend {
             metrics.recordBackendError();
             return handleFailure(limit, windowSeconds, policyId);
         }
+    }
+
+    @Override
+    public RateLimitResult tokenBucketConsume(String key, int capacity, double refillRate, String policyId) {
+        try {
+            long now = Instant.now().getEpochSecond();
+            // TTL: time to fully refill bucket from empty + buffer
+            int ttl = (int) Math.ceil(capacity / refillRate) + TTL_BUFFER_SECONDS;
+
+            List result = redisTemplate.execute(tokenBucketScript,
+                    Collections.singletonList(key),
+                    String.valueOf(capacity),
+                    String.valueOf(refillRate),
+                    String.valueOf(now),
+                    String.valueOf(ttl));
+
+            long allowed = ((Number) result.get(0)).longValue();
+            long remaining = ((Number) result.get(1)).longValue();
+            long retryAfter = ((Number) result.get(2)).longValue();
+
+            long resetEpoch = now + (retryAfter > 0 ? retryAfter : (long) Math.ceil(1.0 / refillRate));
+
+            if (allowed == 1) {
+                return RateLimitResult.allowed(capacity, (int) remaining, resetEpoch, policyId);
+            }
+            return RateLimitResult.rejected(capacity, resetEpoch, policyId, retryAfter);
+
+        } catch (RedisConnectionFailureException e) {
+            log.error("Redis connection failed for token bucket key={}: {}", key, e.getMessage());
+            metrics.recordBackendError();
+            return handleTokenBucketFailure(capacity, refillRate, policyId);
+
+        } catch (Exception e) {
+            log.error("Unexpected error during token bucket check for key={}: {}", key, e.getMessage(), e);
+            metrics.recordBackendError();
+            return handleTokenBucketFailure(capacity, refillRate, policyId);
+        }
+    }
+
+    private RateLimitResult handleTokenBucketFailure(int capacity, double refillRate, String policyId) {
+        long resetEpoch = Instant.now().getEpochSecond() + (long) Math.ceil(1.0 / refillRate);
+        if (failOpen) {
+            log.warn("Fail-open: allowing request due to backend error (policy={})", policyId);
+            return RateLimitResult.allowed(capacity, capacity, resetEpoch, policyId);
+        }
+        return RateLimitResult.rejected(capacity, resetEpoch, policyId, (long) Math.ceil(1.0 / refillRate));
     }
 
     private RateLimitResult handleFailure(int limit, int windowSeconds, String policyId) {

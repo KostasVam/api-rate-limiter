@@ -1,6 +1,7 @@
 package com.vamva.ratelimiter.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vamva.ratelimiter.config.RateLimiterProperties;
 import com.vamva.ratelimiter.engine.RateLimitEngine;
 import com.vamva.ratelimiter.metrics.RateLimitMetrics;
 import com.vamva.ratelimiter.model.RateLimitResult;
@@ -12,10 +13,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -34,20 +37,30 @@ import java.util.Optional;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private final RateLimitEngine engine;
     private final RateLimitMetrics metrics;
     private final ObjectMapper objectMapper;
+    private final List<String> excludePaths;
 
-    public RateLimitFilter(RateLimitEngine engine, RateLimitMetrics metrics, ObjectMapper objectMapper) {
+    public RateLimitFilter(RateLimitEngine engine, RateLimitMetrics metrics,
+                           ObjectMapper objectMapper, RateLimiterProperties properties) {
         this.engine = engine;
         this.metrics = metrics;
         this.objectMapper = objectMapper;
+        this.excludePaths = properties.getExcludePaths();
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        if (isExcluded(request.getRequestURI())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         long startNanos = System.nanoTime();
         String route = request.getMethod() + " " + request.getRequestURI();
 
@@ -93,5 +106,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 response.getWriter().write("{\"error\":\"rate_limit_exceeded\"}");
             }
         }
+    }
+
+    private boolean isExcluded(String path) {
+        return excludePaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
     }
 }

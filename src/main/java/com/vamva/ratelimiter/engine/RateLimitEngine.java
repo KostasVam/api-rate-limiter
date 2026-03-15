@@ -131,8 +131,19 @@ public class RateLimitEngine {
     /**
      * Evaluates a single policy using the configured algorithm.
      */
+    /**
+     * Evaluates a single policy using the configured algorithm.
+     */
     private RateLimitResult evaluatePolicy(Policy policy, String subjectKey) {
         long now = Instant.now().getEpochSecond();
+
+        if (policy.getAlgorithm() == Algorithm.TOKEN_BUCKET) {
+            String bucketKey = String.format("rl:tb:%s:%s", policy.getId(), subjectKey);
+            int capacity = policy.getEffectiveBurstCapacity();
+            double refillRate = (double) policy.getLimit() / policy.getWindowSeconds();
+            return backend.tokenBucketConsume(bucketKey, capacity, refillRate, policy.getId());
+        }
+
         long windowStart = now / policy.getWindowSeconds();
 
         if (policy.getAlgorithm() == Algorithm.SLIDING_WINDOW) {
@@ -140,9 +151,6 @@ public class RateLimitEngine {
             String currentKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, windowStart);
             String previousKey = String.format("rl:%s:%s:%d", policy.getId(), subjectKey, previousWindowStart);
 
-            // Overlap weight: how far we are into the current window
-            // At window start: weight=1.0 (previous fully counts)
-            // At window end: weight=0.0 (previous doesn't count)
             long windowStartEpoch = windowStart * policy.getWindowSeconds();
             double elapsed = now - windowStartEpoch;
             double overlapWeight = 1.0 - (elapsed / policy.getWindowSeconds());

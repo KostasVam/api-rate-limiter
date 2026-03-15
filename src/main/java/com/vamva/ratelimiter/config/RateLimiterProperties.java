@@ -29,6 +29,13 @@ public class RateLimiterProperties {
     /** Storage backend type: "redis" or "in-memory". */
     private String backend = "redis";
 
+    /**
+     * Paths to exclude from rate limiting (Ant-style patterns).
+     * Requests matching any of these patterns bypass all policies.
+     * Example: /actuator/**, /health, /ready
+     */
+    private List<String> excludePaths = new ArrayList<>();
+
     /** List of rate limiting policies to enforce. */
     @Valid
     private List<Policy> policies = new ArrayList<>();

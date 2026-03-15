@@ -11,6 +11,10 @@ rate-limiter:
   enabled: true
   fail-open: true
   backend: redis
+  exclude-paths:
+    - /actuator/**
+    - /health
+    - /ready
 
   policies:
     - id: login-per-ip
