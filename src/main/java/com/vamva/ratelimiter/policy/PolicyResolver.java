@@ -3,7 +3,6 @@ package com.vamva.ratelimiter.policy;
 import com.vamva.ratelimiter.config.PolicyReloadService;
 import com.vamva.ratelimiter.model.Policy;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
@@ -17,7 +16,6 @@ import java.util.List;
  * Path matching uses Spring's {@link org.springframework.util.AntPathMatcher}
  * for glob patterns like {@code /api/**}.</p>
  */
-@Component
 public class PolicyResolver {
 
     private final PolicyReloadService reloadService;

@@ -3,7 +3,6 @@ package com.vamva.ratelimiter.metrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code rate_limiter_eval_duration} — evaluation time histogram</li>
  * </ul>
  */
-@Component
 public class RateLimitMetrics {
 
     private final MeterRegistry registry;

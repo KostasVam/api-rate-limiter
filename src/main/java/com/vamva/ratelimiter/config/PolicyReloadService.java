@@ -2,7 +2,6 @@ package com.vamva.ratelimiter.config;
 
 import com.vamva.ratelimiter.model.Policy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
@@ -19,7 +18,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * can be replaced via the reload endpoint or programmatically via {@link #updatePolicies}.</p>
  */
 @Slf4j
-@Service
 public class PolicyReloadService {
 
     private final AtomicReference<List<Policy>> activePolicies;

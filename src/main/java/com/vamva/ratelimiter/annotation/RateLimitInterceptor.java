@@ -10,7 +10,6 @@ import com.vamva.ratelimiter.model.RateLimitResult;
 import com.vamva.ratelimiter.subject.CompositeKeyBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -30,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * independently — if either rejects, the request is rejected.</p>
  */
 @Slf4j
-@Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final RateLimiterProperties properties;

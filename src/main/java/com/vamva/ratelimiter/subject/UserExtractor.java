@@ -1,7 +1,6 @@
 package com.vamva.ratelimiter.subject;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.Optional;
@@ -13,7 +12,6 @@ import java.util.Optional;
  * or container-managed auth), then falls back to the {@code X-User-Id} header
  * for pre-authenticated scenarios (e.g., API gateway).</p>
  */
-@Component
 public class UserExtractor implements SubjectExtractor {
 
     @Override

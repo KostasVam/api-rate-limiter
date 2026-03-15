@@ -17,6 +17,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
  * <p>When a controller throws an exception, Spring's error handling may create a new
  * response that doesn't carry the headers set by {@link RateLimitFilter}. This advice
  * re-applies them from the request attribute stored by the filter.</p>
+ *
+ * <p>Note: {@code @ControllerAdvice} is required for Spring MVC to recognize this as
+ * a {@link ResponseBodyAdvice}. The bean is still created via auto-configuration,
+ * not component scanning.</p>
  */
 @ControllerAdvice
 public class RateLimitHeaderAdvice implements ResponseBodyAdvice<Object> {

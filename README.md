@@ -50,6 +50,7 @@ A Spring Boot middleware library that limits HTTP request rates per configurable
 - [x] Custom error response per policy (message, status code)
 - [x] Rate limit headers on error responses (ResponseBodyAdvice)
 - [x] Annotation-based `@RateLimit` for controller methods
+- [x] Spring Boot Starter packaging (auto-configuration, no component scanning required)
 
 ## Architecture
 
@@ -344,8 +345,7 @@ api-rate-limiter/
 │   │   │   ├── RateLimiterProperties.java
 │   │   │   ├── RateLimiterAutoConfiguration.java
 │   │   │   ├── PolicyReloadService.java
-│   │   │   ├── PolicyReloadEndpoint.java
-│   │   │   └── WebMvcConfig.java
+│   │   │   └── PolicyReloadEndpoint.java
 │   │   ├── model/
 │   │   │   ├── Policy.java
 │   │   │   ├── MatchCondition.java
@@ -377,6 +377,8 @@ api-rate-limiter/
 │   │       └── DemoController.java
 │   ├── main/resources/
 │   │   ├── application.yml
+│   │   ├── META-INF/spring/
+│   │   │   └── ...AutoConfiguration.imports
 │   │   └── scripts/
 │   │       ├── fixed_window.lua
 │   │       ├── sliding_window.lua
@@ -432,6 +434,32 @@ api-rate-limiter/
 | AC2  | Policy 5 req/min/IP — client sends 6th request                       | HTTP 429                |
 | AC3  | User A hits limit — User B sends request                             | User B succeeds         |
 | AC4  | Two app instances share Redis — combined count enforced               | Limit shared correctly  |
+
+## Usage as Library
+
+Add the dependency to your Spring Boot project:
+
+```kotlin
+// build.gradle.kts
+implementation("com.vamva:api-rate-limiter:0.1.0")
+```
+
+That's it. The auto-configuration activates automatically — no `@ComponentScan` or `@Import` needed. Configure policies in your `application.yml`:
+
+```yaml
+rate-limiter:
+  enabled: true
+  backend: redis
+  policies:
+    - id: api-per-ip
+      limit: 100
+      window-seconds: 60
+      subjects: [ip]
+      match:
+        paths: [/api/**]
+```
+
+All beans can be overridden by declaring your own (e.g., custom `SubjectExtractor`, custom `RateLimitBackend`).
 
 ## Getting Started
 

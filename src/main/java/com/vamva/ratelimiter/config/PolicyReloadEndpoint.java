@@ -4,7 +4,6 @@ import com.vamva.ratelimiter.model.Policy;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
-import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,7 +17,6 @@ import java.util.Map;
  *   <li>{@code POST /actuator/ratelimiter} — reload policies from configuration</li>
  * </ul>
  */
-@Component
 @Endpoint(id = "ratelimiter")
 public class PolicyReloadEndpoint {
 

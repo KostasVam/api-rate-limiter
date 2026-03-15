@@ -4,7 +4,6 @@ import com.vamva.ratelimiter.backend.RateLimitBackend;
 import com.vamva.ratelimiter.model.Algorithm;
 import com.vamva.ratelimiter.model.Policy;
 import com.vamva.ratelimiter.model.RateLimitResult;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
@@ -18,7 +17,6 @@ import java.time.Instant;
  * <p>Handles key construction with Redis Cluster-compatible hash tags and dispatches
  * to the appropriate backend method based on the policy's algorithm.</p>
  */
-@Component
 public class PolicyEvaluator {
 
     private final RateLimitBackend backend;

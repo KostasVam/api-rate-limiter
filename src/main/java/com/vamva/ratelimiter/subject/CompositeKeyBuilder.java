@@ -3,7 +3,6 @@ package com.vamva.ratelimiter.subject;
 import com.vamva.ratelimiter.model.Policy;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import java.util.stream.Collectors;
  * cannot determine the subject value from the request.</p>
  */
 @Slf4j
-@Component
 public class CompositeKeyBuilder {
 
     private final Map<String, SubjectExtractor> extractors;

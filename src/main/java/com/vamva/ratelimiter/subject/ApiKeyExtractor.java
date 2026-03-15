@@ -1,14 +1,12 @@
 package com.vamva.ratelimiter.subject;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 /**
  * Extracts the API key from the {@code X-API-Key} request header.
  */
-@Component
 public class ApiKeyExtractor implements SubjectExtractor {
 
     @Override

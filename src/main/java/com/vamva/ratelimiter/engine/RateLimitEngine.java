@@ -9,7 +9,6 @@ import com.vamva.ratelimiter.policy.PolicyResolver;
 import com.vamva.ratelimiter.subject.CompositeKeyBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,7 +30,6 @@ import java.util.Optional;
  * recorded) but their results do not contribute to the reject decision.</p>
  */
 @Slf4j
-@Component
 public class RateLimitEngine {
 
     private final RateLimiterProperties properties;
