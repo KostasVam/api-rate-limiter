@@ -46,27 +46,27 @@ HTTP Request
      │
      ▼
 ┌─────────────────────┐
-│  RateLimitFilter     │  ← OncePerRequestFilter (middleware entry point)
+│  RateLimitFilter    │  ← OncePerRequestFilter (middleware entry point)
 └─────────┬───────────┘
           │
           ▼
 ┌─────────────────────┐
-│  PolicyResolver      │  ← Matches request to policies (AntPathMatcher)
+│  PolicyResolver     │  ← Matches request to policies (AntPathMatcher)
 └─────────┬───────────┘
           │
           ▼
 ┌─────────────────────┐
-│  CompositeKeyBuilder │  ← Builds subject key via SubjectExtractors
+│  CompositeKeyBuilder│  ← Builds subject key via SubjectExtractors
 └─────────┬───────────┘
           │
           ▼
 ┌─────────────────────┐
-│  RateLimitEngine     │  ← Evaluates each matched policy
-│                      │
-│  ┌───────────────┐   │
-│  │ Backend       │   │  ← Redis (prod) or InMemory (dev)
-│  │ (INCR+TTL)    │   │
-│  └───────────────┘   │
+│  RateLimitEngine    │  ← Evaluates each matched policy
+│                     │
+│  ┌───────────────┐  │
+│  │ Backend       │  │  ← Redis (prod) or InMemory (dev)
+│  │ (INCR+TTL)    │  │
+│  └───────────────┘  │
 └─────────┬───────────┘
           │
           ▼
