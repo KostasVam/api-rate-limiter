@@ -17,6 +17,11 @@ public class PolicyResolver {
 
     private final PolicyReloadService reloadService;
 
+    /**
+     * Creates a PolicyResolver backed by the given reload service.
+     *
+     * @param reloadService the service providing active policies
+     */
     public PolicyResolver(PolicyReloadService reloadService) {
         this.reloadService = reloadService;
     }

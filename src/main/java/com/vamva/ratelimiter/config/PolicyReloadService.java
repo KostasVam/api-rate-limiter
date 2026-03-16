@@ -18,12 +18,22 @@ public class PolicyReloadService {
     private final PolicyStore policyStore;
     private final RateLimiterProperties properties;
 
+    /**
+     * Creates a PolicyReloadService.
+     *
+     * @param policyStore the backing policy store
+     * @param properties  the rate limiter configuration properties
+     */
     public PolicyReloadService(PolicyStore policyStore, RateLimiterProperties properties) {
         this.policyStore = policyStore;
         this.properties = properties;
     }
 
-    /** Returns the current active policies from the policy store. */
+    /**
+     * Returns the current active policies from the policy store.
+     *
+     * @return the list of active policies
+     */
     public List<Policy> getActivePolicies() {
         return policyStore.getPolicies();
     }
@@ -33,7 +43,11 @@ public class PolicyReloadService {
         policyStore.reload();
     }
 
-    /** Returns whether the rate limiter is enabled. */
+    /**
+     * Returns whether the rate limiter is enabled.
+     *
+     * @return {@code true} if the rate limiter is enabled
+     */
     public boolean isEnabled() {
         return properties.isEnabled();
     }

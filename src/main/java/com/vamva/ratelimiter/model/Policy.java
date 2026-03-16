@@ -82,17 +82,27 @@ public class Policy {
 
     /**
      * Returns the effective burst capacity — defaults to {@code limit} if not explicitly set.
+     *
+     * @return the burst capacity, or {@code limit} if not configured
      */
     public int getEffectiveBurstCapacity() {
         return burstCapacity > 0 ? burstCapacity : limit;
     }
 
-    /** Returns the error message, defaulting to "Too many requests". */
+    /**
+     * Returns the error message, defaulting to "Too many requests".
+     *
+     * @return the configured error message, or the default
+     */
     public String getEffectiveErrorMessage() {
         return errorMessage != null && !errorMessage.isBlank() ? errorMessage : "Too many requests";
     }
 
-    /** Returns the error status code, defaulting to 429. */
+    /**
+     * Returns the error status code, defaulting to 429.
+     *
+     * @return the configured error status code, or 429
+     */
     public int getEffectiveErrorStatusCode() {
         return errorStatusCode >= 400 ? errorStatusCode : 429;
     }

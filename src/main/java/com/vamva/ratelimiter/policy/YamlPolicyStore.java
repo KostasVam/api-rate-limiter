@@ -23,6 +23,11 @@ public class YamlPolicyStore implements PolicyStore {
     private final RateLimiterProperties properties;
     private final AtomicReference<List<Policy>> activePolicies;
 
+    /**
+     * Creates a YamlPolicyStore and loads initial policies from properties.
+     *
+     * @param properties the rate limiter configuration properties
+     */
     public YamlPolicyStore(RateLimiterProperties properties) {
         this.properties = properties;
         List<Policy> policies = properties.getPolicies();

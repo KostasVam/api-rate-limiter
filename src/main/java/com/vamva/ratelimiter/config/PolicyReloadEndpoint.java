@@ -22,10 +22,12 @@ public class PolicyReloadEndpoint {
 
     private final PolicyReloadService reloadService;
 
+    /** Creates a PolicyReloadEndpoint with the given reload service. */
     public PolicyReloadEndpoint(PolicyReloadService reloadService) {
         this.reloadService = reloadService;
     }
 
+    /** Returns the current rate limiter status and active policies. */
     @ReadOperation
     public Map<String, Object> status() {
         List<Policy> policies = reloadService.getActivePolicies();
@@ -37,6 +39,7 @@ public class PolicyReloadEndpoint {
         return result;
     }
 
+    /** Reloads policies from configuration and returns the before/after counts. */
     @WriteOperation
     public Map<String, Object> reload() {
         int before = reloadService.getActivePolicies().size();

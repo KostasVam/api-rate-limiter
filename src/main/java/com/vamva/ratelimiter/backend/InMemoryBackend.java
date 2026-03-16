@@ -30,10 +30,16 @@ public class InMemoryBackend implements RateLimitBackend {
     private final ConcurrentHashMap<String, BucketEntry> buckets = new ConcurrentHashMap<>();
     private final Clock clock;
 
+    /** Creates an InMemoryBackend using the system UTC clock. */
     public InMemoryBackend() {
         this(Clock.systemUTC());
     }
 
+    /**
+     * Creates an InMemoryBackend with the specified clock.
+     *
+     * @param clock the clock to use for time-based operations
+     */
     public InMemoryBackend(Clock clock) {
         this.clock = clock;
     }

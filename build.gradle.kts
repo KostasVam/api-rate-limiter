@@ -58,6 +58,10 @@ tasks.jacocoTestReport {
     }))
 }
 
+tasks.javadoc {
+    (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
+}
+
 jmh {
     warmupIterations.set(2)
     iterations.set(3)

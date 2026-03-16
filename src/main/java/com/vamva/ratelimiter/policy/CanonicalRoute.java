@@ -24,6 +24,9 @@ public record CanonicalRoute(String method, String normalizedPath) {
 
     /**
      * Creates a CanonicalRoute from an HTTP request, normalizing the path.
+     *
+     * @param request the incoming HTTP request
+     * @return a new CanonicalRoute with normalized method and path
      */
     public static CanonicalRoute from(HttpServletRequest request) {
         return new CanonicalRoute(request.getMethod(), normalizePath(request.getRequestURI()));
@@ -32,6 +35,8 @@ public record CanonicalRoute(String method, String normalizedPath) {
     /**
      * Returns the route in subject key format: {@code METHOD:/path}
      * <p>Used for composite rate limit keys (e.g., {@code POST:/api/payments}).</p>
+     *
+     * @return the route as a subject key string
      */
     public String toSubjectKey() {
         return method + ":" + normalizedPath;
@@ -40,6 +45,8 @@ public record CanonicalRoute(String method, String normalizedPath) {
     /**
      * Returns the route in log format: {@code METHOD /path}
      * <p>Used for structured logging and debug output.</p>
+     *
+     * @return the route as a human-readable log string
      */
     public String toLogString() {
         return method + " " + normalizedPath;
@@ -52,6 +59,9 @@ public record CanonicalRoute(String method, String normalizedPath) {
 
     /**
      * Normalizes a raw request URI path.
+     *
+     * @param path the raw URI path
+     * @return the normalized path
      */
     static String normalizePath(String path) {
         if (path == null || path.isEmpty()) {

@@ -22,6 +22,12 @@ public class PolicyEvaluator {
     private final RateLimitBackend backend;
     private final Clock clock;
 
+    /**
+     * Creates a PolicyEvaluator with the given backend and clock.
+     *
+     * @param backend the rate limit backend for counter storage
+     * @param clock   the clock for time-based calculations
+     */
     public PolicyEvaluator(RateLimitBackend backend, Clock clock) {
         this.backend = backend;
         this.clock = clock;
