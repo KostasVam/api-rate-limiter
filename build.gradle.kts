@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     `maven-publish`
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
@@ -40,6 +41,21 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    classDirectories.setFrom(files(classDirectories.files.map {
+        fileTree(it) {
+            exclude("com/vamva/ratelimiter/RateLimiterApplication.class")
+            exclude("com/vamva/ratelimiter/demo/**")
+        }
+    }))
 }
 
 jmh {

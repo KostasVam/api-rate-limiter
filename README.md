@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/KostasVam/api-rate-limiter/actions/workflows/ci.yml/badge.svg)](https://github.com/KostasVam/api-rate-limiter/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-17-blue.svg)](https://openjdk.org/projects/jdk/17/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![codecov](https://codecov.io/gh/KostasVam/api-rate-limiter/branch/master/graph/badge.svg)](https://codecov.io/gh/KostasVam/api-rate-limiter)
 
 Distributed API rate limiter middleware with Redis-backed enforcement, per-route policies, and observability support.
 
